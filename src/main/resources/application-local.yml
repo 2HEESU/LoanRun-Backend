@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/loanrun}
+    username: ${SPRING_DATASOURCE_USERNAME:loanrun}
+    password: ${SPRING_DATASOURCE_PASSWORD:local-demo-only}
+server:
+  servlet:
+    session:
+      cookie:
+        secure: false
+loanrun:
+  demo-mode: ${DEMO_MODE:true}
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
