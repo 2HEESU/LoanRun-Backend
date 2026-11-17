@@ -51,6 +51,8 @@ CI executes the same build without production secrets.
   `credentials: 'include'` and an exact configured origin; cross-site deployment needs separate validation.
 - Mutating requests **must** carry an `Origin` in `ALLOWED_ORIGINS`, including curl/Postman requests.
   No extra CSRF endpoint or token is needed. Local defaults: `http://localhost:5173,http://localhost:8080`.
+- A supplied disallowed `Origin` is rejected for every API method with a JSON `ORIGIN_NOT_ALLOWED` error.
+  GET requests without an Origin remain supported. Profile `occupation` accepts an empty string or null; `name` must be nonblank.
 - Request JSON is limited to 1 MiB. PATCH omission retains the value; explicit null is accepted only where documented.
 - User IDs in request bodies cannot select an owner. PRO checks read server state on every request.
 - `PATCH /api/settings/subscription/` accepts `{"plan_type":"PRO"}` or `FREE` only when `DEMO_MODE=true`.
