@@ -17,6 +17,11 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew clean build --no-daemon
+      - name: Build and check runtime image
+        run: |
+          docker build --pull --tag loanrun-backend:ci .
+          test "$(docker run --rm --network none --entrypoint id loanrun-backend:ci -u)" = "10001"
+          docker run --rm --network none --entrypoint java loanrun-backend:ci -version
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -1,0 +1,6 @@
+# Allow only the prebuilt Boot JAR into the build context.
+**
+!Dockerfile
+!build/
+!build/libs/
+!build/libs/loanrun-backend-0.0.1-SNAPSHOT.jar
