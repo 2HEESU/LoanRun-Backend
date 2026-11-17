@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16.16-bookworm
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-loanrun}
+      POSTGRES_USER: ${POSTGRES_USER:-loanrun}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-demo-only}
+      TZ: UTC
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - loanrun-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 15
+volumes:
+  loanrun-db:

@@ -1,0 +1,7 @@
+loanrun:
+  allowed-origins: ${ALLOWED_ORIGINS}
+server:
+  servlet:
+    session:
+      cookie:
+        secure: true
