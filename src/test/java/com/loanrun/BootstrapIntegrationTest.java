@@ -123,6 +123,10 @@ class BootstrapIntegrationTest {
             assertThat(json(response).has("data")).isFalse();
         }
         assertThat(json(request(client, "GET", "/api/users/me/", null, null)).path("data").path("name").asText()).isEqualTo("사용자");
+        var emptyOccupation = request(client, "PATCH", "/api/users/me/", "{\"occupation\":\"\"}", "http://localhost:5173");
+        assertThat(emptyOccupation.statusCode()).isEqualTo(200);
+        assertThat(json(emptyOccupation).path("data").path("occupation").asText()).isEmpty();
+        assertThat(json(request(client, "GET", "/api/users/me/", null, null)).path("data").path("occupation").asText()).isEmpty();
     }
 
     @Test
@@ -167,6 +171,11 @@ class BootstrapIntegrationTest {
             assertThat(json(response).path("code").asText()).isEqualTo("ORIGIN_NOT_ALLOWED");
         }
         assertThat(request(client, "GET", "/api/users/me", null, null).statusCode()).isEqualTo(404);
+        for (String method : new String[]{"GET", "OPTIONS"}) {
+            var rejected = request(client, method, "/api/users/me/", null, "https://attacker.invalid");
+            assertThat(rejected.statusCode()).isEqualTo(403);
+            assertThat(json(rejected).path("code").asText()).isEqualTo("ORIGIN_NOT_ALLOWED");
+        }
         assertThat(json(request(client, "POST", "/api/users/me/", "{}", "http://localhost:5173")).path("code").asText()).isEqualTo("METHOD_NOT_ALLOWED");
         assertThat(request(client, "POST", "/api/auth/login/", "{}", "http://localhost:5173").statusCode()).isEqualTo(404);
         assertThat(request(client, "DELETE", "/api/users/me/", null, "http://localhost:5173").statusCode()).isEqualTo(405);

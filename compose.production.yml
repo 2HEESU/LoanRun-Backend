@@ -1,0 +1,78 @@
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:16.16-bookworm
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-loanrun}
+      POSTGRES_USER: ${POSTGRES_USER:-loanrun}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a private database password}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    logging: *logging
+
+  backend:
+    image: ${APP_IMAGE:?Set the verified application image}
+    restart: unless-stopped
+    mem_limit: 768m
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=64m"]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-loanrun}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-loanrun}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set a private database password}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set exact HTTPS frontend origins}
+      DEMO_MODE: ${DEMO_MODE:-false}
+      SERVER_FORWARD_HEADERS_STRATEGY: native
+      FSS_ENABLED: "false"
+      OPENAI_ENABLED: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/actuator/health"]
+      start_period: 60s
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    logging: *logging
+
+  nginx:
+    image: nginx:1.30.6-alpine@sha256:901e593c95dc85f5a729f5765516321366ef4ac401821431d408897e95287d0a
+    restart: unless-stopped
+    mem_limit: 128m
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/var/cache/nginx:rw,nosuid,nodev,size=32m", "/var/run:rw,nosuid,nodev,size=1m", "/etc/nginx/conf.d:rw,nosuid,nodev,size=1m"]
+    ports:
+      - "${HTTP_BIND:-0.0.0.0}:${HTTP_PORT:-80}:80"
+      - "${HTTP_BIND:-0.0.0.0}:${HTTPS_PORT:-443}:443"
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:?Set the hostname without a port}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?Set the canonical HTTPS origin}
+      NGINX_ENVSUBST_FILTER: "^(PUBLIC_HOST|PUBLIC_ORIGIN)$$"
+    volumes:
+      - ./infra/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./infra/nginx/api-proxy.conf:/etc/nginx/api-proxy.conf:ro
+      - ${TLS_DIRECTORY:?Set the absolute TLS directory}:/etc/nginx/tls:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    logging: *logging
+
+volumes:
+  pgdata:
