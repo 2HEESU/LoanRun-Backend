@@ -57,7 +57,15 @@ CI executes the same build without production secrets.
   Repeated identical transitions do not advance revision. Billing is always disabled.
 
 Current routes: GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
-GET/PATCH `/api/settings/notifications/`. Further domain endpoints are tracked locally as pending until implemented and tested.
+GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`.
+Further domain endpoints are tracked locally as pending until implemented and tested.
+
+Export accepts `format=csv` and optional `start_month`/`end_month` in `YYYY-MM` form.
+Only the session owner's loans and preserved payments are exported, including historical transactions for deleted loans.
+Month filters apply to payments. The CSV uses UTF-8 BOM, CRLF, quoted cells and spreadsheet formula protection.
+The original nine columns are followed by `fee_amount,savings_used_amount`, as required by the detailed export rules.
+Success is a CSV attachment; errors use the JSON envelope. Team 1 supplies the owner-scoped `LoanQueryPort` projections;
+until those implementations are integrated, export returns `503 SERVICE_UNAVAILABLE` without runtime placeholder data.
 
 ## Shared development
 
