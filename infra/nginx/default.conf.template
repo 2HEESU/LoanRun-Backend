@@ -1,0 +1,58 @@
+resolver 127.0.0.11 valid=10s ipv6=off;
+upstream loanrun_api {
+    zone loanrun_api 64k;
+    server backend:8080 resolve;
+    keepalive 16;
+}
+limit_req_zone $binary_remote_addr zone=api_per_ip:10m rate=10r/s;
+limit_req_zone $binary_remote_addr zone=report_per_ip:10m rate=5r/m;
+
+server {
+    listen 80;
+    server_name ${PUBLIC_HOST};
+    access_log off;
+    return 308 ${PUBLIC_ORIGIN}$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name ${PUBLIC_HOST};
+    ssl_certificate /etc/nginx/tls/fullchain.pem;
+    ssl_certificate_key /etc/nginx/tls/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    server_tokens off;
+    access_log off;
+    charset utf-8;
+    client_max_body_size 1m;
+    limit_req_status 429;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy same-origin always;
+    error_page 413 = @body_too_large;
+    error_page 429 = @rate_limited;
+    error_page 502 503 504 = @unavailable;
+
+    location = /api/reports/ {
+        limit_req zone=report_per_ip burst=3 nodelay;
+        include /etc/nginx/api-proxy.conf;
+    }
+    location /api/ {
+        limit_req zone=api_per_ip burst=20 nodelay;
+        include /etc/nginx/api-proxy.conf;
+    }
+    location = /actuator/health {
+        include /etc/nginx/api-proxy.conf;
+    }
+    location / { return 404; }
+    location @body_too_large {
+        default_type application/json;
+        return 400 '{"success":false,"code":"VALIDATION_ERROR","message":"입력값을 확인해 주세요.","errors":{}}';
+    }
+    location @rate_limited {
+        default_type application/json;
+        return 429 '{"success":false,"code":"RATE_LIMIT_EXCEEDED","message":"요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.","errors":{}}';
+    }
+    location @unavailable {
+        default_type application/json;
+        return 503 '{"success":false,"code":"SERVICE_UNAVAILABLE","message":"일시적으로 서비스를 이용할 수 없습니다.","errors":{}}';
+    }
+}
