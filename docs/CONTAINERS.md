@@ -31,3 +31,34 @@ docker run --rm --network none --entrypoint java loanrun-backend:local -version
 The image alone does not configure PostgreSQL, TLS or a public server. Production must use the `prod` profile,
 a private DB network and an HTTPS reverse proxy, with exact `ALLOWED_ORIGINS` and Secure session cookies.
 Compose/Nginx and deployment procedures are separate changes under issue #13.
+
+## HTTPS Compose
+
+`compose.production.yml` runs PostgreSQL, the verified backend image and Nginx.
+Only Nginx publishes ports; PostgreSQL and backend remain on the private Compose network.
+It uses 512 MiB for DB, 768 MiB for backend and 128 MiB for Nginx, plus host/Docker overhead.
+Backend runs with a read-only filesystem, dropped capabilities and a temporary `/tmp`.
+DB data is stored in the project's `pgdata` volume. Never use `down -v` against a persistent deployment.
+
+Copy `infra/production.env.example` to a protected file outside the checkout and replace the placeholders.
+Use a verified commit-tagged image or image digest, exact HTTPS origins and an existing TLS directory containing
+`fullchain.pem` and `privkey.pem`. Protect the private key and real env file. No key or certificate is issued by this configuration.
+
+```sh
+docker compose --env-file /opt/loanrun/production.env -f compose.production.yml config --quiet
+docker compose --env-file /opt/loanrun/production.env -f compose.production.yml up -d --wait
+docker compose --env-file /opt/loanrun/production.env -f compose.production.yml ps
+```
+
+These are deployment commands, to run only after the target server, costs, TLS and migrations are confirmed.
+The env file is read by Compose; runtime configuration is passed explicitly to backend.
+`DEMO_MODE=true` enables the existing FREE/PRO demonstration switch; it defaults to false.
+FSS and OpenAI remain disabled in this initial deployment configuration. Enabling real integrations requires a separate
+reviewed runtime configuration after account/key readiness; no external keys are passed here.
+
+Nginx preserves `/api/` paths and the browser Origin, redirects HTTP to the configured canonical HTTPS origin,
+and overwrites forwarded client IP headers. The backend trusts its private reverse proxy via Tomcat native forwarding;
+keep backend ports private. Edge limits are 10 API requests/second per IP (burst 20) and 5 report requests/minute (burst 3).
+Oversized bodies return 400 JSON; rate limits return 429 JSON; upstream failures return 503 JSON.
+The only exposed operational route is `/actuator/health`. Swagger is disabled by the prod profile.
+Frontend static hosting remains unconfigured pending agreement with the frontend team; `/` returns 404.

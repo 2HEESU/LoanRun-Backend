@@ -22,6 +22,8 @@ jobs:
           docker build --pull --tag loanrun-backend:ci .
           test "$(docker run --rm --network none --entrypoint id loanrun-backend:ci -u)" = "10001"
           docker run --rm --network none --entrypoint java loanrun-backend:ci -version
+      - name: Validate HTTPS Compose configuration
+        run: docker compose --env-file infra/production.env.example -f compose.production.yml config --quiet
       - uses: actions/upload-artifact@v4
         if: always()
         with:
