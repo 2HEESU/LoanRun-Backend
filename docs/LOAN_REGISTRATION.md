@@ -48,6 +48,11 @@ Ledger tables establish source constraints and composite owner/loan foreign keys
 fake actuals are included. Only the first contractual due is initialized. Later source mutations must preserve
 past confirmed dues and rebuild applicable future schedules under the same user lock.
 
+The [V2/V3/V5 migration audit](MIGRATION_V2_REVIEW.md) verifies ordered fresh installs and one-off V2
+upgrades of earlier V3/V5 test databases, with existing rows/checksums and schema equivalence preserved.
+Actual Team 2 DB history is still unknown; use the read-only inspection SQL before operating that DB.
+This removes the unverified schema-order gate for central V2 review, not the real budget-port integration gap.
+
 V1 is unchanged. V3/V5 SQL and other owners' migrations are untouched. product_id remains a scalar, matching
 Team 2's pending catalog migration; adding catalog/allocation FKs needs a coordinated later migration.
 Fresh databases apply V1 then V2. Team 2 databases that already applied V3 or V5 must coordinate the one-time
