@@ -15,6 +15,9 @@ public final class StrategyEngineInputs {
         public Prepared {goals=List.copyOf(goals);}
     }
     public static SimulationInput baseline(RiskScenarioInput source){
+        return baseline(source,List.of());
+    }
+    public static SimulationInput baseline(RiskScenarioInput source,List<PlannedAmount> overrides){
         var facts=source.household();Map<YearMonth,List<PlannedAmount>> months=new LinkedHashMap<>();
         for(int i=0;i<1200;i++){
             var month=facts.month().plusMonths(i);List<PlannedAmount> amounts=new ArrayList<>();
@@ -25,14 +28,17 @@ public final class StrategyEngineInputs {
                 boolean saving=loan.method()==RepaymentMethod.BULLET;
                 long cash=saving?p.monthlySaving():p.monthlyExtraCash();
                 var amount=new PlannedAmount(loan.loanId(),saving?AllocationType.REPAYMENT_SAVING:AllocationType.EXTRA_PAYMENT,cash,null);
-                amounts.add(i==0?remaining(amount,source):amount);
+                amounts.add(amount);
             }
-            months.put(month,amounts);
+            months.put(month,i==0?currentGoals(source,amounts,overrides).stream().map(a->remaining(a,source)).toList():amounts);
         }
         return request(source,months,"KEEP_PLANS");
     }
     /** Empty means these captured facts cannot fund/define this candidate; no engine or external call is made. */
     public static Optional<Prepared> candidate(RiskScenarioInput source,Code code){
+        return candidate(source,code,List.of());
+    }
+    public static Optional<Prepared> candidate(RiskScenarioInput source,Code code,List<PlannedAmount> overrides){
         var facts=source.household();String type=StrategyInputPolicy.type(facts.loans(),facts.asOf());
         if(type.equals("NONE"))return Optional.empty();
         boolean single=type.equals("SINGLE_PREFERENCE"),savingOnly=type.equals("SAVINGS_ONLY");
@@ -64,13 +70,16 @@ public final class StrategyEngineInputs {
             if(code!=Code.PARALLEL)cash[0]=extra;
             for(int i=0;i<ordered.size();i++)goals.add(new PlannedAmount(ordered.get(i).loanId(),AllocationType.EXTRA_PAYMENT,cash[i],code==Code.PARALLEL?1:i+1));
         }
+        Set<Long> scope=new HashSet<>();facts.loans().forEach(l->scope.add(l.loanId()));
         long paid=Math.max(Math.addExact(facts.capacity().usedExtraCash(),facts.capacity().usedSaving()),
-            Math.addExact(sum(source.payments().extraCashByLoan()),sum(source.savings().additionsByLoan())));
-        long currentLimit=Math.max(Math.subtractExact(budget.currentCash(),paid),0);
+            Math.addExact(sum(source.payments().extraCashByLoan(),scope),sum(source.savings().additionsByLoan(),scope)));
+        var currentGoals=currentGoals(source,goals,overrides);
+        long currentTotal=currentGoals.stream().map(PlannedAmount::cashAmount).reduce(0L,Math::addExact);
+        long currentLimit=Math.max(Math.subtractExact(Math.min(currentTotal,facts.capacity().allocationCapacity()),paid),0);
         long capacityLeft=Math.max(Math.subtractExact(Math.subtractExact(facts.capacity().allocationCapacity(),paid),facts.capacity().reserveAmount()),0);
         currentLimit=Math.min(currentLimit,capacityLeft);
         if(facts.capacity().remainingAllocatable()!=null)currentLimit=Math.min(currentLimit,Math.max(facts.capacity().remainingAllocatable(),0));
-        var remaining=goals.stream().map(goal->remaining(goal,source)).toList();
+        var remaining=currentGoals.stream().map(goal->remaining(goal,source)).toList();
         long savingLeft=remaining.stream().filter(a->a.allocationType()==AllocationType.REPAYMENT_SAVING).map(PlannedAmount::cashAmount).reduce(0L,Math::addExact);
         if(savingLeft>currentLimit)return Optional.empty();
         List<PlannedAmount> current=new ArrayList<>();long left=currentLimit;
@@ -88,7 +97,18 @@ public final class StrategyEngineInputs {
         long actual=(amount.allocationType()==AllocationType.REPAYMENT_SAVING?source.savings().additionsByLoan():source.payments().extraCashByLoan()).getOrDefault(amount.loanId(),0L);
         return new PlannedAmount(amount.loanId(),amount.allocationType(),Math.max(Math.subtractExact(amount.cashAmount(),actual),0),amount.priority());
     }
-    private static long sum(Map<Long,Long> values){return values.values().stream().reduce(0L,Math::addExact);}
+    private static long sum(Map<Long,Long> values,Set<Long> scope){return values.entrySet().stream().filter(e->scope.contains(e.getKey())).map(Map.Entry::getValue).reduce(0L,Math::addExact);}
+    private static List<PlannedAmount> currentGoals(RiskScenarioInput source,List<PlannedAmount> goals,List<PlannedAmount> overrides){
+        Map<Long,PlannedAmount> current=new LinkedHashMap<>();goals.forEach(goal->current.put(goal.loanId(),goal));Set<Long> seen=new HashSet<>();
+        for(var override:overrides){
+            var loan=source.household().loans().stream().filter(l->l.loanId()==override.loanId()).findFirst();if(loan.isEmpty())continue;
+            var expected=loan.get().method()==RepaymentMethod.BULLET?AllocationType.REPAYMENT_SAVING:AllocationType.EXTRA_PAYMENT;
+            if(override.cashAmount()<0||override.allocationType()!=expected||!seen.add(override.loanId()))throw new IllegalArgumentException("Invalid captured month override");
+            current.put(override.loanId(),new PlannedAmount(override.loanId(),override.allocationType(),override.cashAmount(),null));
+        }
+        // Saving conditions retain priority over direct extra cash, regardless of override insertion order.
+        return current.values().stream().sorted(Comparator.comparingInt(a->a.allocationType()==AllocationType.REPAYMENT_SAVING?0:1)).toList();
+    }
     /** Initial cash weights only; the engine must recompute remaining-principal weights at each period. */
     private static long[] proportions(List<LoanTerms> ordered,long cash){
         var total=ordered.stream().map(l->BigDecimal.valueOf(l.outstanding())).reduce(BigDecimal.ZERO,BigDecimal::add);

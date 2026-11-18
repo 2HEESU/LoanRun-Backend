@@ -20,3 +20,11 @@ also cap the remaining first-month request. Future months restore repeated goals
 currentFundingAvailable is false when those current goals cannot be funded; the report adapter must not
 recommend or allow applying such a candidate. Unknown/unfundable saving conditions produce no candidate.
 This change does not select loan report scope, persist candidates, expose an endpoint or call the engine itself.
+
+Callers may supply captured current-month overrides to both baseline and candidate builders. Explicit zero
+and manual amounts replace only that month's goals; future strategy goals remain unchanged. Current-only
+carry can fund an override without increasing repeated funding. Manual conditions use null priority; the engine
+must preserve these explicit per-loan conditions in that period. If the cash cap cannot fund current conditions,
+currentFundingAvailable stays false and no application/recommendation may claim otherwise. Supplied maps
+may retain household history while terms/capacity represent a selected scope; only in-scope map entries are
+deducted, and capacity.usedExtraCash/usedSaving still protect already-used cash for the supplied scope.
