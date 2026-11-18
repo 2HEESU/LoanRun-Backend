@@ -77,4 +77,32 @@ class StrategyEngineInputsTest {
         assertThat(total(candidate(source,Code.INTEREST_SAVING).orElseThrow().goals())).isZero();
         assertThatThrownBy(()->candidate(source,Code.FAST)).isInstanceOf(IllegalArgumentException.class);
     }
+    @Test void currentManualOverrideUsesCarryWithoutChangingStableFutureGoals(){
+        var source=source(List.of(loan(1,10000)),List.of(plan(1,300,0,0,asOf)),cap(1000L,1000,5000,0,4900L),Map.of(1L,100L),Map.of());
+        var overrides=List.of(new PlannedAmount(1,AllocationType.EXTRA_PAYMENT,2000,99));
+        var prepared=candidate(source,Code.STABLE,overrides).orElseThrow();
+        assertThat(total(prepared.simulation().monthlyAmounts().get(month))).isEqualTo(1900);assertThat(prepared.currentFundingAvailable()).isTrue();
+        assertThat(total(prepared.goals())).isZero();assertThat(total(prepared.simulation().monthlyAmounts().get(month.plusMonths(1)))).isZero();
+        assertThat(total(baseline(source,overrides).monthlyAmounts().get(month))).isEqualTo(1900);
+        assertThat(total(baseline(source,overrides).monthlyAmounts().get(month.plusMonths(1)))).isEqualTo(300);
+    }
+    @Test void explicitZeroAndNewCurrentTargetKeepManualPrioritiesOutOfFutureStrategy(){
+        var source=source(List.of(loan(1,10000),loan(2,20000)),List.of(),cap(1000L,1000,5000,0,5000L),Map.of(),Map.of());
+        var overrides=List.of(new PlannedAmount(1,AllocationType.EXTRA_PAYMENT,0,null),new PlannedAmount(2,AllocationType.EXTRA_PAYMENT,700,99));
+        var prepared=candidate(source,Code.INTEREST_SAVING,overrides).orElseThrow();
+        assertThat(prepared.simulation().monthlyAmounts().get(month)).containsExactly(new PlannedAmount(1,AllocationType.EXTRA_PAYMENT,0,null),new PlannedAmount(2,AllocationType.EXTRA_PAYMENT,700,null));
+        assertThat(total(prepared.simulation().monthlyAmounts().get(month.plusMonths(1)))).isEqualTo(500);
+        assertThat(total(baseline(source,overrides).monthlyAmounts().get(month))).isEqualTo(700);
+    }
+    @Test void selectedSourceDoesNotDeductOtherLoanMapsTwiceButWholeUserCapacityStillProtectsUsedCash(){
+        var selected=source(List.of(loan(1,10000)),List.of(),cap(1000L,1000,1000,0,1000L),Map.of(99L,900L),Map.of());
+        assertThat(total(candidate(selected,Code.FAST).orElseThrow().simulation().monthlyAmounts().get(month))).isEqualTo(800);
+    }
+    @Test void invalidOrDuplicateCapturedOverridesFailInsteadOfProducingAChangedGoal(){
+        var source=source(List.of(loan(1,10000)),List.of(),cap(1000L,1000,1000,0,1000L),Map.of(),Map.of());
+        var wrong=new PlannedAmount(1,AllocationType.REPAYMENT_SAVING,100,null);
+        assertThatThrownBy(()->candidate(source,Code.FAST,List.of(wrong))).isInstanceOf(IllegalArgumentException.class);
+        var valid=new PlannedAmount(1,AllocationType.EXTRA_PAYMENT,100,null);
+        assertThatThrownBy(()->baseline(source,List.of(valid,valid))).isInstanceOf(IllegalArgumentException.class);
+    }
 }
