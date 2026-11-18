@@ -67,3 +67,7 @@ API #13 and V2 source storage are implemented with user locking, the active-loan
 ## 2026-11-19 migration review for #80
 
 The pinned V1/V2/V3/V5 SQL combination passed five isolated PostgreSQL/Flyway11.7.2 audit cases: fresh order, V3/V5-first V2 introduction, existing-row/history preservation, schema equivalence, restart with default ordering and invalid-file validation. See MIGRATION_V2_REVIEW.md and the read-only psql script. Actual Team2 DB state has not been supplied. Central V2 review can proceed separately from that DB migration and real budget/query-port integration. No actual development/production DB, shared SQL or application setting was changed.
+
+## Follow-up: source reads (Issue #82)
+
+LoanSourceRepository/LoanSources add real owner/date-scoped V2 reads and immutable typed facts. PostgreSQL tests cover ownership, dates, original values and no financial writes. After #80 merged at c275347, the source-read feature was integrated with central develop and retested for a separate PR. It is not a completed LoanQueryPort; financial projection/aggregation and public loan query APIs remain pending.

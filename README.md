@@ -93,6 +93,10 @@ See [risk input and projection contracts](docs/RISK_INPUTS.md) for cash, target 
 Team 1 implements the repayment engine and loans/payments/savings/plans. Team 2 owns common infrastructure
 and user/budget/catalog/dashboard/risk/report/settings. Runtime mock implementations are prohibited.
 
+The owner-scoped V2 source read repository in `loan/read` preserves original loan/history/ledger facts.
+See [source query semantics and projection limits](docs/LOAN_SOURCE_QUERIES.md). It does not yet implement
+LoanQueryPort or enable real budget/CSV/risk integration.
+
 The real, pure `RepaymentEngine` implementation lives in `finance/engine`; Spring wiring is in `finance/config`.
 See [calculation behavior and limits](docs/REPAYMENT_ENGINE.md) and the
 [implementation audit](docs/IMPLEMENTATION_STATUS.md). The engine adds no HTTP routes or migrations.
