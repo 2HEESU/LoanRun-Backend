@@ -59,7 +59,7 @@ CI executes the same build without production secrets.
   Repeated identical transitions do not advance revision. Billing is always disabled.
 
 Current routes: GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
-GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`.
+GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`, POST `/api/risks/simulate/`.
 Further domain endpoints are tracked locally as pending until implemented and tested.
 
 Export accepts `format=csv` and optional `start_month`/`end_month` in `YYYY-MM` form.
@@ -69,11 +69,23 @@ The original nine columns are followed by `fee_amount,savings_used_amount`, as r
 Success is a CSV attachment; errors use the JSON envelope. Team 1 supplies the owner-scoped `LoanQueryPort` projections;
 until those implementations are integrated, export returns `503 SERVICE_UNAVAILABLE` without runtime placeholder data.
 
+Risk simulation is PRO-only and accepts `scenario_type` (`CURRENT`, `RATE_UP`, `INCOME_DOWN`, `EXPENSE_UP`)
+and optional positive `loan_ids`. These scenarios independently apply variable-rate +1 percentage point,
+income -5%, or a one-time current-month expense of 500,000 won. Direct slider values are rejected. Loan IDs
+validate an owner-scoped filter; household calculations still include every active loan. The read-only request
+does not advance revision. Missing required query/engine implementations return 503; no runtime fixtures exist.
+See [risk input and projection contracts](docs/RISK_INPUTS.md) for cash, target and uncertainty handling.
+
 ## Shared development
 
 [Technical contracts](docs/CONTRACT.md) define domain ownership, ports and migration reservations.
 Team 1 implements the repayment engine and loans/payments/savings/plans. Team 2 owns common infrastructure
 and user/budget/catalog/dashboard/risk/report/settings. Runtime mock implementations are prohibited.
+
+The real, pure `RepaymentEngine` implementation lives in `finance/engine`; Spring wiring is in `finance/config`.
+See [calculation behavior and limits](docs/REPAYMENT_ENGINE.md) and the
+[implementation audit](docs/IMPLEMENTATION_STATUS.md). The engine adds no HTTP routes or migrations.
+Loan/ledger/plan query implementations are still required before the CSV and risk APIs can use actual domain data.
 
 Production must set `SPRING_PROFILES_ACTIVE=prod`, database credentials and exact `ALLOWED_ORIGINS`.
 Use an HTTPS reverse proxy and a private DB network; this local Compose file is not a production deployment.
