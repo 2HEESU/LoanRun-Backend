@@ -19,5 +19,11 @@ history must not become a fabricated zero streak. `missedPaymentCount6m` covers 
 failures in the last six completed months; unrecorded months are not automatically missed payments. Unknown
 counts remain null; a confirmed zero remains zero. Report use must not expose PRO-only data to FREE callers.
 
+`ReportHistoryQueryPort.history(userId, loanId, range)` supplies actual monthly history for the requested report
+scope. A null loan ID means the household; a specific ID must be owned, otherwise LOAN_NOT_FOUND. Preserve paid
+and deleted loans' actual payments in the appropriate scope. Empty/unobserved history must not become invented
+zero-month rows. Team 2 cannot derive a specific loan's history from aggregated household rows. The existing
+`LoanQueryPort.history(userId, range)` signature stays unchanged; consumers must not silently use it for a loan scope.
+
 Review request: confirm ownership filtering, preservation after deletion, source plan version/override selection,
 window boundaries, sufficient-history rules and null semantics before implementing these projections.
