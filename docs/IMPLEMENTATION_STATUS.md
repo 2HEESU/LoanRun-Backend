@@ -59,3 +59,11 @@ No frontend, Notion, Figma, production database or deployment was modified.
 ## Follow-up: loan preview (Issue #76)
 
 After engine PR #75 merged at f9dcb78, API #14 POST /api/loans/preview/ and reusable LoanInputValidator were added. No V2 or actual registration API is included. The 24-operation baseline above remains historical; 23 Team 1 HTTP operations remain pending after this follow-up. Product ID lookup requires the real catalog port; manual input needs no external service. Preview leaves financial revision and idempotency records unchanged, verified with PostgreSQL and real HTTP requests.
+
+## Follow-up: registration (Issue #79)
+
+API #13 and V2 source storage are implemented with user locking, the active-loan cap, initial MATURITY snapshot, first due and atomic recalculation/revision. Success tests exercise the actual PostgreSQL repository and HTTP endpoint with a test-only budget provider; the normal runtime remains blocked with503 until Team2 supplies the real recalculation/query chain. No runtime placeholder provider, LoanQueryPort or PlanQueryPort is introduced. V3/V4/V5 remain unchanged; existing V3/V5 environments require coordinated migration ordering. Other Team1 HTTP operations (#12, #15–35) remain pending.
+
+## 2026-11-19 migration review for #80
+
+The pinned V1/V2/V3/V5 SQL combination passed five isolated PostgreSQL/Flyway11.7.2 audit cases: fresh order, V3/V5-first V2 introduction, existing-row/history preservation, schema equivalence, restart with default ordering and invalid-file validation. See MIGRATION_V2_REVIEW.md and the read-only psql script. Actual Team2 DB state has not been supplied. Central V2 review can proceed separately from that DB migration and real budget/query-port integration. No actual development/production DB, shared SQL or application setting was changed.

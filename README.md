@@ -63,7 +63,13 @@ payment, principal, interest and required BULLET saving using the real engine. I
 advance financial revision. Manual product names work independently; selecting a product requires the
 Team 2 catalog port (503 until connected, missing product 404). Numeric strings and unknown fields are rejected.
 
-Current routes: POST `/api/loans/preview/`, GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
+Loan registration: `POST /api/loans/` uses the same validation and returns 201 when its required budget
+recalculation provider is integrated. It atomically stores V2 loan sources, the default MATURITY snapshot and
+first due, enforcing seven active loans under the existing user lock. Optional `Idempotency-Key` replays the
+original response. Without the real recalculation provider it returns 503 and saves nothing. See
+[registration transaction and migration notes](docs/LOAN_REGISTRATION.md) before applying V2.
+
+Current routes: POST `/api/loans/`, POST `/api/loans/preview/`, GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
 GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`, POST `/api/risks/simulate/`.
 Further domain endpoints are tracked locally as pending until implemented and tested.
 
