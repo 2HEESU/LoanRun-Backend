@@ -25,3 +25,11 @@ against the engine's zero-change result. Only rows in the requested month count.
 evaluated once per probe; no cache is shared across snapshots. Strict target/basic failure thresholds use the
 specified 0–5 percentage-point range and 0.01 grid, based on cash before carry. Fixed-rate-only inputs have no
 rate threshold; missing baseline cash remains null. An absent engine never becomes an invented zero impact.
+
+`RiskPayoffProjection` forwards caller-supplied monthly amounts and rate overrides to the engine. Callers must
+prepare remaining current-month amounts after actual usage, future recurring targets and applicable dates;
+the projection adapter does not rebuild them or calculate loan schedules. Its feasibility classification compares
+each active loan's engine payoff date with that loan's saved target. Meeting only the latest household target
+cannot hide an earlier missed loan target. Explicit engine funding failure is LOW, a known missed target is
+MEDIUM, every target must be known and met for HIGH, and incomplete dates remain null. Engine warnings remain
+attached to the projection. Cash/required-saving feasibility and the HTTP scenario API are separate changes.
