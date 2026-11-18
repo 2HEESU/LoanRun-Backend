@@ -48,9 +48,9 @@ same-day order, explicit zero/null/false, fee and savings-use preservation, futu
 PAID/DELETED history, invalid plan source handling, immutable results and read-only behavior. Financial
 source fixtures are synthetic; budget mocks exist only in registration test setup.
 
-This feature depends on Draft #80's V2 and is prepared as its own commit on the personal Fork. No migration,
-shared contract, public API or Team 2 code changes are included. Until #80 is merged, no cumulative central PR
-is opened. After that merge, sync develop, integrate/retest this feature alone and open its develop PR.
+This feature uses the V2 baseline merged through #80 at c275347. Central develop has been merged into this
+feature branch for retesting and a separate develop PR. No registration code is duplicated in its diff.
+No migration, shared contract, public API or Team 2 code changes are included.
 LoanQueryPort financial projection/aggregation, default/versioned PlanQueryPort, real budget recalculation,
 public loan reads, frontend integration and deployment remain separate work. This layer alone does not remove
 registration's missing-provider503 or activate CSV/risk domain integration.

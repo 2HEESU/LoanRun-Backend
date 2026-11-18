@@ -64,6 +64,10 @@ After engine PR #75 merged at f9dcb78, API #14 POST /api/loans/preview/ and reus
 
 API #13 and V2 source storage are implemented with user locking, the active-loan cap, initial MATURITY snapshot, first due and atomic recalculation/revision. Success tests exercise the actual PostgreSQL repository and HTTP endpoint with a test-only budget provider; the normal runtime remains blocked with503 until Team2 supplies the real recalculation/query chain. No runtime placeholder provider, LoanQueryPort or PlanQueryPort is introduced. V3/V4/V5 remain unchanged; existing V3/V5 environments require coordinated migration ordering. Other Team1 HTTP operations (#12, #15–35) remain pending.
 
-## Prepared follow-up: source reads (Issue #82)
+## 2026-11-19 migration review for #80
 
-LoanSourceRepository/LoanSources add real owner/date-scoped V2 reads and immutable typed facts. PostgreSQL tests cover ownership, dates, original values and no financial writes. This is a feature commit on the personal Fork based on Draft #80, not a central merged feature or completed LoanQueryPort. The financial projection/aggregation and public loan query APIs remain pending; no cumulative central PR is opened before #80 merges.
+The pinned V1/V2/V3/V5 SQL combination passed five isolated PostgreSQL/Flyway11.7.2 audit cases: fresh order, V3/V5-first V2 introduction, existing-row/history preservation, schema equivalence, restart with default ordering and invalid-file validation. See MIGRATION_V2_REVIEW.md and the read-only psql script. Actual Team2 DB state has not been supplied. Central V2 review can proceed separately from that DB migration and real budget/query-port integration. No actual development/production DB, shared SQL or application setting was changed.
+
+## Follow-up: source reads (Issue #82)
+
+LoanSourceRepository/LoanSources add real owner/date-scoped V2 reads and immutable typed facts. PostgreSQL tests cover ownership, dates, original values and no financial writes. After #80 merged at c275347, the source-read feature was integrated with central develop and retested for a separate PR. It is not a completed LoanQueryPort; financial projection/aggregation and public loan query APIs remain pending.
