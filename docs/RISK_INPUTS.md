@@ -18,3 +18,10 @@ a zero denominator remains null. Original nullable actual income and budget fact
 The adapter performs no interest, schedule or payoff calculation and does not call an engine or an external
 service. Missing query implementations fail with `503 SERVICE_UNAVAILABLE`; startup does not install runtime
 fixtures. Immutable snapshots are inputs for subsequent risk/scenario API changes, not completed APIs.
+
+`RiskRateStress` creates a request-local probe that asks Team 1's engine for a one-month basic schedule with
+no extra/saving targets. It changes only variable annual rates by percentage points and compares basic burdens
+against the engine's zero-change result. Only rows in the requested month count. Each distinct increase is
+evaluated once per probe; no cache is shared across snapshots. Strict target/basic failure thresholds use the
+specified 0–5 percentage-point range and 0.01 grid, based on cash before carry. Fixed-rate-only inputs have no
+rate threshold; missing baseline cash remains null. An absent engine never becomes an invented zero impact.
