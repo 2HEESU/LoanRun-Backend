@@ -82,6 +82,11 @@ See [risk input and projection contracts](docs/RISK_INPUTS.md) for cash, target 
 Team 1 implements the repayment engine and loans/payments/savings/plans. Team 2 owns common infrastructure
 and user/budget/catalog/dashboard/risk/report/settings. Runtime mock implementations are prohibited.
 
+The real, pure `RepaymentEngine` implementation lives in `finance/engine`; Spring wiring is in `finance/config`.
+See [calculation behavior and limits](docs/REPAYMENT_ENGINE.md) and the
+[implementation audit](docs/IMPLEMENTATION_STATUS.md). The engine adds no HTTP routes or migrations.
+Loan/ledger/plan query implementations are still required before the CSV and risk APIs can use actual domain data.
+
 Production must set `SPRING_PROFILES_ACTIVE=prod`, database credentials and exact `ALLOWED_ORIGINS`.
 Use an HTTPS reverse proxy and a private DB network; this local Compose file is not a production deployment.
 No cloud resources or automatic deployment have been created by this bootstrap.
