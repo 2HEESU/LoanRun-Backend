@@ -55,3 +55,7 @@ have its own central Issue, personal Fork branch `<type>/<issue>-<english-descri
 Baseline validation in this checkout: Java 21 `./gradlew clean build`, 100 tests, failures/errors/skips 0,
 including PostgreSQL Testcontainers. Engine validation and exact final counts are recorded in its PR.
 No frontend, Notion, Figma, production database or deployment was modified.
+
+## Follow-up: loan preview (Issue #76)
+
+After engine PR #75 merged at f9dcb78, API #14 POST /api/loans/preview/ and reusable LoanInputValidator were added. No V2 or actual registration API is included. The 24-operation baseline above remains historical; 23 Team 1 HTTP operations remain pending after this follow-up. Product ID lookup requires the real catalog port; manual input needs no external service. Preview leaves financial revision and idempotency records unchanged, verified with PostgreSQL and real HTTP requests.
