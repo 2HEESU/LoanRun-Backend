@@ -24,6 +24,11 @@ The initial port signatures are the bootstrap integration proposal; confirm fiel
 | `ProductQueryPort` | Team 2 | Optional catalog product validation |
 | `StrategyQueryPort` | Team 2 | Strategy preview/save |
 | `FinanceProfileQueryPort` | Team 2 | Profile income-type consistency |
+| `UserAccessPort` | Team 2 | Internal/async plan checks without HTTP request scope |
+
+`UserAccessPort` reloads the owner's server plan state per check. HTTP `CurrentUserProvider` still resolves
+the session before delegating; its existing signatures and public API behavior are unchanged. This adds no
+public user selector, Team 1 projection, schema change or replacement domain implementation.
 
 The engine is pure. No replacement engine or production empty-data stub is supplied.
 All loan queries are scoped by `userId`. A foreign or missing loan produces `404 LOAN_NOT_FOUND`.
