@@ -33,3 +33,20 @@ each active loan's engine payoff date with that loan's saved target. Meeting onl
 cannot hide an earlier missed loan target. Explicit engine funding failure is LOW, a known missed target is
 MEDIUM, every target must be known and met for HIGH, and incomplete dates remain null. Engine warnings remain
 attached to the projection. Cash/required-saving feasibility and the HTTP scenario API are separate changes.
+
+## Fixed scenario API
+
+`POST /api/risks/simulate/` requires PRO. CURRENT, RATE_UP (+1%p for variable loans), INCOME_DOWN (-5%) and
+EXPENSE_UP (500,000 won in the current month) each start from the same unchanged snapshot. Request `loan_ids`
+cannot narrow household cash or debt. The service retains read-only REPEATABLE_READ across input and actual
+ledger queries, and performs no original writes or revision changes.
+
+Monthly targets passed to the engine subtract recorded current-month extra cash/fees or saving additions;
+future months keep saved targets. Required BULLET savings are used for risk/affordability checks, not silently
+written into a larger user goal. Whole months before plan effectiveness/grace end have no extra target; the engine
+owns exact dated grace/payment behavior. Missing target or cash facts remain unknown. Target/basic failure
+thresholds use pre-carry cash, with 0.01% income steps and one-won expense steps.
+
+Emergency coverage divides known emergency funds by recurring shortfall only. A one-time expense shortage is
+separate; it does not become a fictitious monthly deficit. Engine projection warnings are retained. API tests
+use controlled query/engine fixtures for adapter behavior; actual Team 1 financial-engine integration is pending.
