@@ -69,7 +69,12 @@ first due, enforcing seven active loans under the existing user lock. Optional `
 original response. Without the real recalculation provider it returns 503 and saves nothing. See
 [registration transaction and migration notes](docs/LOAN_REGISTRATION.md) before applying V2.
 
-Current routes: POST `/api/loans/`, POST `/api/loans/preview/`, GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
+Loan rate history: `GET /api/loans/{loan_id}/rate-history/` returns stored manual rates in application-date/ID
+order, including the registration rate with an unknown (null) previous rate. Foreign, missing and deleted
+loans return the same 404; paid-loan history remains visible. No financial sources are changed. See
+[rate history behavior and tests](docs/LOAN_RATE_HISTORY.md). Rate change registration is still pending.
+
+Current routes: POST `/api/loans/`, POST `/api/loans/preview/`, GET `/api/loans/{loan_id}/rate-history/`, GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
 GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`, POST `/api/risks/simulate/`.
 Further domain endpoints are tracked locally as pending until implemented and tested.
 
