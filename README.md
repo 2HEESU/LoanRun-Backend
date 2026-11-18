@@ -58,7 +58,12 @@ CI executes the same build without production secrets.
 - `PATCH /api/settings/subscription/` accepts `{"plan_type":"PRO"}` or `FREE` only when `DEMO_MODE=true`.
   Repeated identical transitions do not advance revision. Billing is always disabled.
 
-Current routes: GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
+Loan preview: `POST /api/loans/preview/` validates the shared registration input and returns the next basic
+payment, principal, interest and required BULLET saving using the real engine. It does not save a loan or
+advance financial revision. Manual product names work independently; selecting a product requires the
+Team 2 catalog port (503 until connected, missing product 404). Numeric strings and unknown fields are rejected.
+
+Current routes: POST `/api/loans/preview/`, GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
 GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`, POST `/api/risks/simulate/`.
 Further domain endpoints are tracked locally as pending until implemented and tested.
 
