@@ -240,4 +240,55 @@ class PlanReadApiIntegrationTest {
         var before=sources.loanSnapshot(user,id,LocalDate.of(2026,3,1));assertThat(rate(b,id,"{\"effective_date\":\"2026-03-01\",\"annual_rate\":7}").statusCode()).isEqualTo(409);
         assertThat(sources.loanSnapshot(user,id,LocalDate.of(2026,3,1))).isEqualTo(before);
     }
+    HttpResponse<String> patchLoan(HttpClient b,long id,String body)throws Exception{return mutate(b,"PATCH","/api/loans/"+id+"/",body);}
+    @Test void correctionAppendsSnapshotAndRepricesFutureWithoutChangingRegistrationOrRates()throws Exception {
+        var b=browser();long user=owner(b),id=variableLoan(user,"EQUAL_PRINCIPAL",null);var before=sources.loanSnapshot(user,id,LocalDate.of(2026,3,1));long rev=revisions.current(user);clearInvocations(recalc);
+        var r=patchLoan(b,id,"{\"remaining_principal\":10000000}");assertThat(r.statusCode()).as(r.body()).isEqualTo(200);var d=json(r).path("data");
+        assertThat(json(r).path("code").asText()).isEqualTo("LOAN_UPDATE_SUCCESS");assertThat(d.path("remaining_principal").longValue()).isEqualTo(10000000);
+        assertThat(d.path("snapshot_date").asText()).isEqualTo("2026-03-01");assertThat(d.path("snapshot_principal").longValue()).isEqualTo(10000000);
+        assertThat(d.path("estimated_monthly_payment").longValue()).isEqualTo(1050000);assertThat(d.has("plan")).isFalse();
+        var after=sources.loanSnapshot(user,id,LocalDate.of(2026,3,1));assertThat(after.balances()).hasSize(2);assertThat(after.balances().getFirst()).isEqualTo(before.balances().getFirst());
+        assertThat(after.balances().getLast().reason()).isEqualTo("CORRECTION");assertThat(after.rates()).isEqualTo(before.rates());assertThat(after.loans().getFirst().initialPlan()).isEqualTo(before.loans().getFirst().initialPlan());
+        assertThat(revisions.current(user)).isEqualTo(rev+1);verify(recalc).recalculateFrom(user,YearMonth.of(2026,3));
+    }
+    @Test void correctionToZeroCompletesLoanAndRemovesOnlyUnconfirmedFutureSchedule()throws Exception {
+        var b=browser();long user=owner(b),id=loan(user,false,true);var r=patchLoan(b,id,"{\"remaining_principal\":0}");assertThat(r.statusCode()).as(r.body()).isEqualTo(200);
+        assertThat(json(r).path("data").path("status").asText()).isEqualTo("PAID");assertThat(jdbc.queryForObject("SELECT count(*) FROM due_items WHERE loan_id=?",Integer.class,id)).isZero();
+        assertThat(sources.loan(user,id).latestSnapshotPrincipal()).isZero();
+    }
+    @Test void contractPatchMovesUnconfirmedDueAndPreservesOmittedFieldsAndExplicitNull()throws Exception {
+        var b=browser();long user=owner(b),id=variableLoan(user,"EQUAL_PRINCIPAL",1300000L);long due=jdbc.queryForObject("SELECT id FROM due_items WHERE loan_id=?",Long.class,id);
+        var r=patchLoan(b,id,"{\"payment_day\":31,\"contractual_monthly_payment\":null,\"next_rate_reset_date\":null}");assertThat(r.statusCode()).as(r.body()).isEqualTo(200);var d=json(r).path("data");
+        assertThat(d.path("payment_day").intValue()).isEqualTo(31);assertThat(d.path("annual_rate").decimalValue()).isEqualByComparingTo("6");assertThat(d.path("contractual_monthly_payment").isNull()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT due_date FROM due_items WHERE id=?",LocalDate.class,due)).isEqualTo(LocalDate.of(2026,3,31));
+        assertThat(sources.loan(user,id).latestSnapshotDate()).isEqualTo(LocalDate.of(2026,2,28));assertThat(jdbc.queryForObject("SELECT count(*) FROM loan_balance_snapshots WHERE loan_id=?",Integer.class,id)).isEqualTo(1);
+    }
+    @Test void metadataAndIdenticalPatchesDoNotRecalculateBudgetOrAppendSnapshots()throws Exception {
+        var b=browser();long user=owner(b),id=loan(user,false,true);long rev=revisions.current(user);clearInvocations(recalc);
+        assertThat(patchLoan(b,id,"{}").statusCode()).isEqualTo(200);assertThat(patchLoan(b,id,"{\"annual_rate\":6}").statusCode()).isEqualTo(400);
+        assertThat(patchLoan(b,id,"{\"remaining_principal\":12000000,\"fee_exempt\":true}").statusCode()).isEqualTo(200);assertThat(revisions.current(user)).isEqualTo(rev);
+        var r=patchLoan(b,id,"{\"product_name\":\"가상 정정 상품\"}");assertThat(r.statusCode()).as(r.body()).isEqualTo(200);assertThat(json(r).path("data").path("product_name").asText()).isEqualTo("가상 정정 상품");
+        assertThat(revisions.current(user)).isEqualTo(rev+1);verifyNoInteractions(recalc);assertThat(jdbc.queryForObject("SELECT count(*) FROM loan_balance_snapshots WHERE loan_id=?",Integer.class,id)).isEqualTo(1);
+    }
+    @ParameterizedTest @ValueSource(strings={"{\"remaining_principal\":null}","{\"remaining_principal\":12000001}","{\"remaining_principal\":-1}","{\"payment_day\":32}","{\"maturity_date\":\"2026-02-30\"}","{\"product_name\":null}","{\"loan_id\":1}","{\"repayment_method\":\"BULLET\"}","{\"user_id\":1}","{\"prepayment_policy\":null}"})
+    void invalidLoanPatchesPreserveAllSources(String input)throws Exception {
+        var b=browser();long user=owner(b),id=loan(user,false,true);var before=sources.loanSnapshot(user,id,LocalDate.of(2026,3,1));long rev=revisions.current(user);
+        var r=patchLoan(b,id,input);assertThat(r.statusCode()).as(r.body()).isEqualTo(400);assertThat(sources.loanSnapshot(user,id,LocalDate.of(2026,3,1))).isEqualTo(before);assertThat(revisions.current(user)).isEqualTo(rev);
+    }
+    @Test void contractPatchConfirmedDueAndHistoricalPrincipalConflictsUse409()throws Exception {
+        var b=browser();long user=owner(b),id=loan(user,false,true);
+        assertThat(json(patchLoan(b,id,"{\"original_principal\":11000000,\"remaining_principal\":10000000}")).path("code").asText()).isEqualTo("LOAN_UPDATE_CONFLICT");
+        jdbc.update("UPDATE due_items SET confirmed_unpaid=true WHERE loan_id=?",id);var before=sources.loanSnapshot(user,id,LocalDate.of(2026,3,1));
+        assertThat(patchLoan(b,id,"{\"remaining_principal\":0}").statusCode()).isEqualTo(409);assertThat(sources.loanSnapshot(user,id,LocalDate.of(2026,3,1))).isEqualTo(before);
+    }
+    @Test void patchForeignDeletedAndCatalogMetadataAreProtected()throws Exception {
+        var b=browser();var other=browser();long user=owner(b),id=loan(user,false,true);owner(other);
+        assertThat(patchLoan(other,id,"{}").statusCode()).isEqualTo(404);jdbc.update("UPDATE loans SET product_id=123 WHERE id=?",id);
+        assertThat(patchLoan(b,id,"{\"product_name\":\"임의 상품\"}").statusCode()).isEqualTo(400);jdbc.update("UPDATE loans SET status='DELETED' WHERE id=?",id);assertThat(patchLoan(b,id,"{}").statusCode()).isEqualTo(404);
+    }
+    @Test void correctionBudgetFailureRollsBackSnapshotContractDueAndRevision()throws Exception {
+        var b=browser();long user=owner(b),id=loan(user,false,true);var before=sources.loanSnapshot(user,id,LocalDate.of(2026,3,1));long rev=revisions.current(user);
+        doThrow(com.loanrun.common.error.ApiException.unavailable()).when(recalc).recalculateFrom(user,YearMonth.of(2026,3));
+        assertThat(patchLoan(b,id,"{\"remaining_principal\":10000000}").statusCode()).isEqualTo(503);assertThat(sources.loanSnapshot(user,id,LocalDate.of(2026,3,1))).isEqualTo(before);assertThat(revisions.current(user)).isEqualTo(rev);
+    }
 }
