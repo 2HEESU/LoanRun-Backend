@@ -45,15 +45,18 @@ public class PaymentLedgerCoordinator {
         for(var due:sorted)if(due.dueDate().isAfter(today)&&replay.allocations().stream().noneMatch(a->a.due()==due.id())&&(paid||due.dueDate().isAfter(cursor))) {
             if(due.confirmedUnpaid())throw new PaymentReplay.Conflict();writes.archiveDue(user,id,due,clock.instant());contracts.removeUnconfirmedDue(user,id,due.id());
         }
-        if(!paid&&!cursor.isBefore(today)&&!cursor.isAfter(l.maturityDate())) {
-            var dueDate=cursor;var fresh=loans.loanSnapshot(user,id,today);var due=fresh.dues().stream().filter(d->d.dueDate().equals(dueDate)).findFirst();var loan=fresh.loans().getFirst();
-            var terms=LoanTermMapper.current(loan,cursor,loan.contractualNextAmount(),com.loanrun.loan.domain.LoanSavingsCalculator.balance(loan,fresh));
-            var result=engine.simulate(new SimulationInput(List.of(terms),today,1200,Map.of(),Map.of(),null,"NONE"));if(result.rows().isEmpty())throw ApiException.unavailable();var first=result.rows().getFirst();
+        if(!paid&&!cursor.isAfter(l.maturityDate())) {
+            var dueDate=cursor;var fresh=loans.loanSnapshot(user,id,today);var due=fresh.dues().stream().filter(d->d.dueDate().equals(dueDate)).findFirst();
             if(due.isEmpty()) {
-                if(writes.restoreDue(user,id,cursor)){var restored=loans.loanSnapshot(user,id,today).dues().stream().filter(d->d.dueDate().equals(dueDate)).findFirst().orElseThrow(ApiException::unavailable);var restoredFields=new HashMap<String,Object>();restoredFields.put("contractual_monthly_payment",restored.contractualAmount());contracts.updateContract(user,id,restoredFields,clock.instant());}
-                else registrations.firstDue(user,id,first,loan.contractualNextAmount(),revision,clock.instant());
+                if(writes.restoreDue(user,id,cursor)) {
+                    var restored=loans.loanSnapshot(user,id,today).dues().stream().filter(d->d.dueDate().equals(dueDate)).findFirst().orElseThrow(ApiException::unavailable);var fields=new HashMap<String,Object>();fields.put("contractual_monthly_payment",restored.contractualAmount());contracts.updateContract(user,id,fields,clock.instant());
+                } else {
+                    if(cursor.isBefore(today))throw ApiException.unavailable(); // Only a captured old obligation may be restored into the past.
+                    var loan=fresh.loans().getFirst();var terms=LoanTermMapper.current(loan,cursor,loan.contractualNextAmount(),com.loanrun.loan.domain.LoanSavingsCalculator.balance(loan,fresh));
+                    var result=engine.simulate(new SimulationInput(List.of(terms),today,1200,Map.of(),Map.of(),null,"NONE"));if(result.rows().isEmpty())throw ApiException.unavailable();registrations.firstDue(user,id,result.rows().getFirst(),loan.contractualNextAmount(),revision,clock.instant());
+                }
             }
-            // Existing first-cycle interest remains frozen; the next generated cycle uses the updated balance.
+            // Existing first-cycle interest remains frozen; only the next generated cycle uses the updated balance.
         }
         var budget=budgets.getIfAvailable();if(budget==null)throw ApiException.unavailable();budget.recalculateFrom(user,YearMonth.from(changedDate));
     }
