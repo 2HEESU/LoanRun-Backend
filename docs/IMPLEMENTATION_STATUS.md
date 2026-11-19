@@ -182,3 +182,5 @@ DB·공통 계약 변경은 없다. [상세 동작과 한계](SAVING_LIST.md)를
 
 최초 검증: JDK 21 clean build 336 tests / 0 failures/errors/skipped(신규 적립 조회 32개).
 추가 중앙 병합 #29/#50/#84/#101 반영 후 전체 검증 결과는 아래 후속 기록을 따른다.
+
+최신 중앙 2cfd190 병합 후 JDK 21 `./gradlew clean build` 성공: 342 tests / 0 failures/errors/skipped.
