@@ -202,3 +202,7 @@ See [source fingerprints, captured time and runtime limits](docs/PLAN_OBSERVATIO
 Current individual payoff queries now compose actual loan terms, saved goals and verified observations with
 the existing engine. Unsupported frozen obligations stay unknown; a missing version table remains 503.
 See [current-source projection and remaining API/DB integration](docs/CURRENT_PLAN_PROJECTION.md).
+
+Current plan performance queries now combine recorded version-period totals with independent monthly evidence
+and original schedules. Unconfirmed cumulative periods and unproved start-balance reductions remain unknown.
+See [performance query periods, proof requirements and runtime limits](docs/PLAN_PERFORMANCE_QUERY.md).
