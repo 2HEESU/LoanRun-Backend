@@ -6,15 +6,15 @@ import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 
-final class RepaymentDates {
+public final class RepaymentDates {
     private RepaymentDates() {}
 
-    static LocalDate dueDate(YearMonth month, int day) {
+    public static LocalDate dueDate(YearMonth month, int day) {
         return month.atDay(Math.min(day, month.lengthOfMonth()));
     }
 
     /** At most one installment per month. The final installment uses the contract maturity date. */
-    static List<LocalDate> remaining(LoanTerms loan, LocalDate asOf) {
+    public static List<LocalDate> remaining(LoanTerms loan, LocalDate asOf) {
         List<LocalDate> dates = new ArrayList<>();
         if (loan.maturityDate().isBefore(asOf)) return dates;
         LocalDate date = loan.nextDueDate();

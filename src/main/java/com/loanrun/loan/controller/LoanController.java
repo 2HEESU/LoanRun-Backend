@@ -6,6 +6,8 @@ import com.loanrun.common.contract.CurrentUserProvider;
 import com.loanrun.loan.dto.LoanPreview;
 import com.loanrun.loan.service.LoanPreviewService;
 import com.loanrun.loan.service.LoanRegistrationService;
+import com.loanrun.loan.service.LoanListService;
+import com.loanrun.loan.dto.LoanList;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,7 +17,12 @@ public class LoanController {
     private final CurrentUserProvider currentUser;
     private final LoanPreviewService service;
     private final LoanRegistrationService registration;
-    public LoanController(CurrentUserProvider currentUser, LoanPreviewService service, LoanRegistrationService registration) { this.currentUser = currentUser; this.service = service; this.registration = registration; }
+    private final LoanListService lists;
+    public LoanController(CurrentUserProvider currentUser, LoanPreviewService service, LoanRegistrationService registration, LoanListService lists) { this.currentUser = currentUser; this.service = service; this.registration = registration; this.lists=lists; }
+    @GetMapping("/")
+    public ApiResponse<LoanList> list(@RequestParam(required=false) String status) {
+        return ApiResponse.success("LOAN_LIST_SUCCESS","보유 대출 목록 정보를 조회했습니다.",lists.list(currentUser.currentUserId(),status==null?"ACTIVE":status));
+    }
     @PostMapping("/")
     public ResponseEntity<JsonNode> create(@RequestBody JsonNode body, @RequestHeader(value="Idempotency-Key",required=false) String key) {
         var result=registration.create(currentUser.currentUserId(),body,key);

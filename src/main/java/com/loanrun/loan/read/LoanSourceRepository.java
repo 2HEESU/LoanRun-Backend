@@ -54,10 +54,20 @@ public class LoanSourceRepository {
      * Stored latest loan columns remain latest facts and are not asserted to describe a past balance/status.
      */
     public Snapshot snapshot(long userId,LocalDate actualsThrough) {
+        return snapshot(userId,actualsThrough,List.of("ACTIVE","PAID","DELETED"));
+    }
+
+    /** Public current views exclude invisible loans before parsing their dependent source data. */
+    public Snapshot visibleSnapshot(long userId,LocalDate today,String status) {
+        if(!Set.of("ACTIVE","PAID","ALL").contains(status))throw ApiException.validation("status","입력값이 올바르지 않습니다.");
+        return snapshot(userId,today,status.equals("ALL")?List.of("ACTIVE","PAID"):List.of(status));
+    }
+
+    private Snapshot snapshot(long userId,LocalDate actualsThrough,List<String> statuses) {
         owner(userId);Objects.requireNonNull(actualsThrough);
-        var p=Map.<String,Object>of("user",userId,"through",actualsThrough);
+        var p=Map.<String,Object>of("user",userId,"through",actualsThrough,"statuses",statuses);
         var loans=jdbc.query("""
-            SELECT * FROM loans WHERE user_id=:user
+            SELECT * FROM loans WHERE user_id=:user AND status IN (:statuses)
             AND (created_at AT TIME ZONE 'Asia/Seoul')::date<=:through ORDER BY id
             """,p,this::loanRow);
         if(loans.isEmpty())return new Snapshot(actualsThrough,List.of(),List.of(),List.of(),List.of(),List.of(),List.of(),List.of());
