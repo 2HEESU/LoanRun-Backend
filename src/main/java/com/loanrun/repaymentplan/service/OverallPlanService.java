@@ -24,7 +24,12 @@ public class OverallPlanService {
         put(result,"applied_at",state.map(PlanApplicationRepository.State::appliedAt).orElse(null));result.put("needs_review",exists&&state.get().revision()!=revisions.current(user));
         for(var k:List.of("target_payoff_date","projected_payoff_date","remaining_principal","monthly_basic_amount","monthly_extra_amount","monthly_total_amount","estimated_total_interest","estimated_total_fee"))result.set(k,aggregate.path(k));
         result.set("data_revision",current.path("data_revision"));var allocations=result.putArray("allocations");Long saving=0L;
-        var today=LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul")));var amounts=ids.isEmpty()?List.<com.loanrun.common.contract.FinanceModels.PlannedAmount>of():saved.plannedAllocations(user,YearMonth.from(today));
+        var today=LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul")));var amounts=new ArrayList<com.loanrun.common.contract.FinanceModels.PlannedAmount>();
+        for(var p:saved.currentPlans(user,today)) {
+            var loan=loans.loan(user,p.loanId());boolean bullet=loan.method()==com.loanrun.common.contract.FinanceModels.RepaymentMethod.BULLET;
+            Integer priority=state.flatMap(v->v.allocations().stream().filter(a->a.loanId()==p.loanId()).findFirst()).map(com.loanrun.common.contract.FinanceModels.PlannedAmount::priority).orElse(null);
+            amounts.add(new com.loanrun.common.contract.FinanceModels.PlannedAmount(p.loanId(),bullet?com.loanrun.common.contract.FinanceModels.AllocationType.REPAYMENT_SAVING:com.loanrun.common.contract.FinanceModels.AllocationType.EXTRA_PAYMENT,bullet?p.monthlySaving():p.monthlyExtraCash(),priority));
+        }
         for(var p:current.path("plans")) {
             long id=p.path("loan_id").longValue();boolean bullet=loans.loan(user,id).method()==com.loanrun.common.contract.FinanceModels.RepaymentMethod.BULLET;
             var a=amounts.stream().filter(v->v.loanId()==id).findFirst();if(a.isEmpty())throw ApiException.unavailable();var n=allocations.addObject();n.put("loan_id",id);n.put("product_name",loans.loan(user,id).productName());n.put("amount",a.get().cashAmount());
