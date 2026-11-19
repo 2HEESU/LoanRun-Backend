@@ -12,11 +12,19 @@ import java.util.TreeMap;
 public final class LoanSavingsCalculator {
     private LoanSavingsCalculator() {}
     public static long balance(Loan loan,Snapshot source) {
+        return balance(loan,source,null,0);
+    }
+    public static long balanceAfterAddition(Loan loan,Snapshot source,LocalDate date,long amount) {
+        if(date==null||amount<=0)throw new IllegalArgumentException("Positive dated addition required");
+        return balance(loan,source,date,amount);
+    }
+    private static long balance(Loan loan,Snapshot source,LocalDate additionDate,long addition) {
         var changes=new TreeMap<LocalDate,Long>();
         for(var saving:source.savings())if(saving.loanId()==loan.loanId())
             changes.merge(saving.savedAt(),saving.amount(),Math::addExact);
         for(var payment:source.payments())if(payment.loanId()==loan.loanId())
             changes.merge(payment.paidAt(),-payment.savingsUsed(),Math::addExact);
+        if(additionDate!=null)changes.merge(additionDate,addition,Math::addExact);
         long balance=loan.initialSavings();
         for(long change:changes.values()) {
             balance=Math.addExact(balance,change);

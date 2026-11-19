@@ -184,3 +184,16 @@ DB·공통 계약 변경은 없다. [상세 동작과 한계](SAVING_LIST.md)를
 추가 중앙 병합 #29/#50/#84/#101 반영 후 전체 검증 결과는 아래 후속 기록을 따른다.
 
 최신 중앙 2cfd190 병합 후 JDK 21 `./gradlew clean build` 성공: 342 tests / 0 failures/errors/skipped.
+
+## Issue #112 — API #33 상환자금 적립 등록
+
+#111 및 #114 병합(6d857b0)을 개인 develop/Fork에 반영하고 feat/112-saving-create에서 구현했다.
+POST /api/repayment-savings/: 활성 BULLET/소유권/기준일·금액 검증, 공통 사용자 잠금/멱등성,
+대출 행 잠금, 실제 적립 저장·실제 적립 월부터 예산 재계산·revision·응답 저장을 원자 처리한다.
+양수 추가만 하며 원금·이자·납부·확정 회차·계획 및 월 관측 상태는 변경하지 않는다.
+실제 예산 공급자 없는 운영 정상 요청은 503/무저장이며 성공 흐름 검증은 테스트 공급자를 사용한다.
+DB/공통 계약 변경 없음. [등록 동작과 의존성](SAVING_CREATE.md)을 참조한다.
+
+검증: JDK 21 `./gradlew clean build` 성공, 전체366 tests / 0 failures/errors/skipped.
+신규 등록 HTTP/DB 검증23개 + 실제 예산 공급자 없는 HTTP 503/무저장 검증1개 포함.
+초기 테스트 보조 메서드 이름 충돌로 컴파일에 실패했으며 수정 후 전체 검증을 통과했다.
