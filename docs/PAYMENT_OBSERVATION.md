@@ -29,6 +29,10 @@ source evidence fails with SERVICE_UNAVAILABLE. Ordinary stale/conflicting evide
 The current KST month is captured from one injected Clock instant. Future months are never observed;
 the report layer still separately filters to completed calendar months for six-month averages.
 
+Issue #134 adds observeAt with a bounded captured instant for multi-month composition. Evidence arriving after
+that instant remains unknown. A confirmation made before its scoped month began cannot become valid later.
+This is not a historical-row reconstruction API. See [plan observation inputs](PLAN_OBSERVATION_QUERY.md).
+
 The snapshot uses the real payment aggregate plus canonical financial rows in one read-only
 REPEATABLE_READ transaction. SHA-256 includes a versioned owner/selection/month prefix, then each
 payment's ID, loan, actual date, type and amount/principal/extra/interest/fee/savings-used fields in ID

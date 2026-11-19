@@ -194,3 +194,7 @@ See [plan progress, track rules and required evidence](docs/PLAN_PERFORMANCE.md)
 Saved-version reference schedules now feed that performance calculator through the existing engine.
 Missing original terms and uncertain fee-adjusted principal remain unavailable.
 See [reference schedule generation and evidence limits](docs/PLAN_REFERENCE_SCHEDULE.md).
+
+Current plan observation queries now read real payment/saving months and validate independent completion evidence.
+With no real completion source installed, inputs remain unobserved/null and preserve the existing plan fallback.
+See [source fingerprints, captured time and runtime limits](docs/PLAN_OBSERVATION_QUERY.md).

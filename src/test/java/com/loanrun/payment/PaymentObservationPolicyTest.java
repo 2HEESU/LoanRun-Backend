@@ -68,4 +68,9 @@ class PaymentObservationPolicyTest {
         var futureEvidence=new Confirmation(scope,hash,Kind.RECORDING_COMPLETE,now.plusSeconds(1));
         assertThat(apply(snapshot(positive()),futureEvidence).reason()).isEqualTo(Reason.FUTURE_CONFIRMATION);
     }
+    @Test void confirmingAFutureMonthEarlyCannotProduceValidEvidenceLater() {
+        var s=snapshot(empty());
+        var early=new Confirmation(scope,hash,Kind.ZERO_CONFIRMED,Instant.parse("2026-02-01T00:00:00Z"));
+        assertThat(apply(s,early).reason()).isEqualTo(Reason.FUTURE_MONTH);assertThat(apply(s,early).observed()).isFalse();
+    }
 }

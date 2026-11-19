@@ -287,3 +287,13 @@ V4없음은 빈이력이 아니라503이며 명시적V2-only조회와 구분한�
 [계획 기준 일정 및 실제 입력 공급 한계](PLAN_REFERENCE_SCHEDULE.md) 참조.
 
 검증: JDK21 `./gradlew clean build` 성공, 전체540 tests / 0 failures/errors/skipped(신규19).
+
+## Issue #134 — 실제 월 관측 실적의 계획 입력 조회
+
+#133 병합(dd50c61)을 개인 develop/Fork에 반영했다. 납부 관측을 재사용하고 BULLET 적립의 실제
+월 원천/fingerprint/독립 확인 근거를 검증하여 최근6개 완료월 입력을 조회한다. 확인 근거 없으면
+false/null이며 정상 빈 관측과 조회 실패를 구분한다. 공통 계약/DB/HTTP 변경 없음.
+[원천 조회·확인 시각·통합 한계](PLAN_OBSERVATION_QUERY.md) 참조. 실제 확인 저장/workflow는 후속이다.
+
+검증: JDK21 `./gradlew clean build` 성공, 전체566 tests / 0 failures/errors/skipped(신규26).
+초기 검증의 테스트 import 충돌과 Spring 예외 변환 기대값 오류는 수정 후 통과했다.
