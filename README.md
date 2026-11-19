@@ -115,6 +115,11 @@ See [risk input and projection contracts](docs/RISK_INPUTS.md) for cash, target 
 Team 1 implements the repayment engine and loans/payments/savings/plans. Team 2 owns common infrastructure
 and user/budget/catalog/dashboard/risk/report/settings. Runtime mock implementations are prohibited.
 
+Monthly payment observation requires explicit recording-complete or actual-zero evidence. Missing
+records/evidence yield `observed=false` and confirmed `actuals=null`, with raw sums kept separately.
+The internal reader checks scope and current ledger contents; no completion store/input workflow is
+connected yet. See [observation evidence and null/zero behavior](docs/PAYMENT_OBSERVATION.md).
+
 Actual-payment queries in `payment` group stored paid_at months/loans and separate original payment
 components, savings use and cash outflow (`amount - savings_used_amount`). API #24 reuses their totals.
 See [actual aggregate scope and supported funding combinations](docs/PAYMENT_ACTUALS.md). No observed-month

@@ -145,3 +145,15 @@ validation is still pending, and generic DB/read fixtures are not proof of suppo
 remains unselected. LoanQueryPort and real budget/CSV/risk integration remain incomplete; no new HTTP
 operation, schema/shared interface or Team2 code change is included. The initial compile's missing
 HttpStatus import was corrected before the successful regression runs.
+
+## Follow-up: payment observation evidence (Issue #104)
+
+After #103 merged at 6c55518, the user confirmed observed only for completed monthly recording or
+explicit actual zero, never inferred from missing records. Payment observation now separates raw
+aggregates from nullable confirmed actuals and validates owner/loan/month evidence against a canonical
+payment-row snapshot. Source changes invalidate prior evidence; unrelated months do not. KST future
+months/evidence and contradictory zero claims remain unobserved. No real completion source exists in
+V2, so normal runtime has observed=false/actuals=null until committed evidence is connected. No default
+provider, new public API, shared port or migration is added. Completion storage/input workflow,
+LoanQueryPort and actual budget/report integration are not reported complete. The initial JDK Month
+name conflict was corrected by naming the internal result ObservedMonth before successful verification.

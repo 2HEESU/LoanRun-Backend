@@ -35,6 +35,7 @@ class PaymentDetailIntegrationTest {
     @Autowired PaymentReadRepository payments;
     @Autowired com.loanrun.payment.service.StoredDueQueryService storedDues;
     @Autowired com.loanrun.payment.service.PaymentActualsQueryService actualPayments;
+    @Autowired com.loanrun.payment.service.PaymentObservationQueryService paymentObservations;
     @LocalServerPort int port;
     // Synthetic V2 source fixtures only. No runtime provider or test budget/query-port replacement.
     HttpClient browser(){return HttpClient.newBuilder().cookieHandler(new CookieManager(null,CookiePolicy.ACCEPT_ALL)).build();}
@@ -91,6 +92,63 @@ class PaymentDetailIntegrationTest {
         var ids=new ArrayList<Long>();data.path("results").forEach(row->ids.add(row.path("payment_id").longValue()));return ids;
     }
     DateRange period(String from,String to){return new DateRange(LocalDate.parse(from),LocalDate.parse(to));}
+
+    @Test void positiveAndEmptyStoredMonthsWithoutCompletionEvidenceRemainUnobservedAndNullable()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner);payment(owner,loan,"2026-03-25","EXTRA",0,100,0,0,0);
+        var march=paymentObservations.observe(owner,YearMonth.of(2026,3),loan);var feb=paymentObservations.observe(owner,YearMonth.of(2026,2),loan);
+        assertThat(march.observed()).isFalse();assertThat(march.actuals()).isNull();assertThat(march.source().recorded().amount()).isEqualTo(100);
+        assertThat(feb.observed()).isFalse();assertThat(feb.actuals()).isNull();assertThat(feb.source().recorded().paymentCount()).isZero();
+    }
+    @Test void fingerprintsAreStableForFinancialFactsAndDoNotTreatMemoAsNewMonthlyPerformance()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner),p=payment(owner,loan,"2026-03-25","EXTRA",0,100,0,10,50);
+        var first=paymentObservations.snapshot(owner,YearMonth.of(2026,3),loan);
+        assertThat(paymentObservations.snapshot(owner,YearMonth.of(2026,3),loan)).isEqualTo(first);
+        jdbc.update("UPDATE payments SET memo='표시용 메모만 변경' WHERE id=?",p);
+        assertThat(paymentObservations.snapshot(owner,YearMonth.of(2026,3),loan)).isEqualTo(first);
+    }
+    @Test void replacedPaymentWithSameAmountsStillInvalidatesOldCompletionEvidence()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner),p=payment(owner,loan,"2026-03-25","EXTRA",0,100,0,0,0);
+        var before=paymentObservations.snapshot(owner,YearMonth.of(2026,3),loan);
+        var proof=new com.loanrun.payment.read.PaymentObservation.Confirmation(before.scope(),before.fingerprint(),
+            com.loanrun.payment.read.PaymentObservation.Kind.RECORDING_COMPLETE,Instant.parse("2026-03-31T00:00:00Z"));
+        jdbc.update("DELETE FROM payments WHERE id=?",p);payment(owner,loan,"2026-03-25","EXTRA",0,100,0,0,0);
+        var after=paymentObservations.snapshot(owner,YearMonth.of(2026,3),loan);
+        assertThat(after.recorded()).isEqualTo(before.recorded());assertThat(after.fingerprint()).isNotEqualTo(before.fingerprint());
+        var projected=com.loanrun.payment.domain.PaymentObservationPolicy.evaluate(after,Optional.of(proof),Instant.parse("2026-03-31T01:00:00Z"));
+        assertThat(projected.observed()).isFalse();assertThat(projected.actuals()).isNull();
+    }
+    @Test void componentChangesWithSamePaymentAmountInvalidateEvidenceButOtherMonthsDoNot()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner),p=payment(owner,loan,"2026-03-25","REGULAR",100,0,10,0,0);
+        var before=paymentObservations.snapshot(owner,YearMonth.of(2026,3),loan);
+        payment(owner,loan,"2026-02-25","EXTRA",0,500,0,0,0);jdbc.update("UPDATE demo_users SET revision=revision+1 WHERE id=?",owner);
+        assertThat(paymentObservations.snapshot(owner,YearMonth.of(2026,3),loan)).isEqualTo(before);
+        jdbc.update("UPDATE payments SET principal_amount=90,interest_amount=20 WHERE id=?",p);
+        var after=paymentObservations.snapshot(owner,YearMonth.of(2026,3),loan);
+        assertThat(after.recorded().amount()).isEqualTo(before.recorded().amount());assertThat(after.fingerprint()).isNotEqualTo(before.fingerprint());
+    }
+    @Test void observationSnapshotsBindUserLoanSelectionAndMonthAndHideForeignLoans()throws Exception {
+        var a=browser();var b=browser();long userA=owner(a),userB=owner(b),loanA=loan(userA),loanB=loan(userB);
+        var single=paymentObservations.snapshot(userA,YearMonth.of(2026,3),loanA);
+        var all=paymentObservations.snapshot(userA,YearMonth.of(2026,3),null);
+        var otherUser=paymentObservations.snapshot(userB,YearMonth.of(2026,3),loanB);
+        var otherMonth=paymentObservations.snapshot(userA,YearMonth.of(2026,2),loanA);
+        assertThat(Set.of(single.fingerprint(),all.fingerprint(),otherUser.fingerprint(),otherMonth.fingerprint())).hasSize(4);
+        assertThatThrownBy(()->paymentObservations.snapshot(userA,YearMonth.of(2026,3),loanB))
+            .isInstanceOfSatisfying(com.loanrun.common.error.ApiException.class,e->assertThat(e.code()).isEqualTo("LOAN_NOT_FOUND"));
+    }
+    @Test void actualZeroConfirmationIsExplicitAndObservationReadsWriteNoFinancialState()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner);
+        var userBefore=jdbc.queryForMap("SELECT revision,updated_at FROM demo_users WHERE id=?",owner);
+        var source=paymentObservations.snapshot(owner,YearMonth.of(2026,3),loan);
+        var proof=new com.loanrun.payment.read.PaymentObservation.Confirmation(source.scope(),source.fingerprint(),
+            com.loanrun.payment.read.PaymentObservation.Kind.ZERO_CONFIRMED,Instant.parse("2026-03-31T00:00:00Z"));
+        var result=com.loanrun.payment.domain.PaymentObservationPolicy.evaluate(source,Optional.of(proof),Instant.parse("2026-03-31T01:00:00Z"));
+        assertThat(result.observed()).isTrue();assertThat(result.actuals()).isNotNull();assertThat(result.actuals().amount()).isZero();
+        paymentObservations.observe(owner,YearMonth.of(2026,3),loan);
+        assertThat(jdbc.queryForMap("SELECT revision,updated_at FROM demo_users WHERE id=?",owner)).isEqualTo(userBefore);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM payments WHERE user_id=?",Long.class,owner)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM idempotency_records WHERE user_id=?",Long.class,owner)).isZero();
+    }
 
     @Test void actualTotalsSeparatePaymentKindsExtraPrincipalFeesSavingsAndCash()throws Exception {
         var browser=browser();long owner=owner(browser),loan=loan(owner);
