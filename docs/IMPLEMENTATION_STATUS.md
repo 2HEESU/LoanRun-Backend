@@ -132,3 +132,16 @@ incomplete LoanQueryPort. No new HTTP operation, shared port, schema or Team 2 c
 HTTP operations remain implemented; actual flag changes/registration still require the real budget
 provider. Terms/balance replay, complete due coverage and monthly observation projections remain
 needed before LoanQueryPort and actual budget/CSV/risk integration can be reported complete.
+
+## Follow-up: actual payment aggregates (Issue #102)
+
+After #96 merged at 87c63bf (also including Team2's risk detail presentation work), exact paid_at-based
+month/loan and full-range payment aggregates separate regular/extra principal, interest, fees, savings
+use, cash outflow and source counts. API #24 shares those totals without changing its public response.
+No allocation joins or empty synthetic months; zero source sums do not imply observed performance.
+User follow-up prompted a reachability audit: normal BULLET/savings and installment principal rules do
+not require the proposed mixed-principal savings priority. It was not introduced; write API #25/#29
+validation is still pending, and generic DB/read fixtures are not proof of supported input. observed
+remains unselected. LoanQueryPort and real budget/CSV/risk integration remain incomplete; no new HTTP
+operation, schema/shared interface or Team2 code change is included. The initial compile's missing
+HttpStatus import was corrected before the successful regression runs.

@@ -31,7 +31,8 @@ public class PaymentReadRepository {
         LEFT JOIN due_items d ON d.user_id=a.user_id AND d.loan_id=a.loan_id AND d.id=a.due_item_id
         """;
     private final NamedParameterJdbcTemplate jdbc;
-    public PaymentReadRepository(NamedParameterJdbcTemplate jdbc) { this.jdbc=jdbc; }
+    private final PaymentActualsRepository actuals;
+    public PaymentReadRepository(NamedParameterJdbcTemplate jdbc,PaymentActualsRepository actuals) { this.jdbc=jdbc;this.actuals=actuals; }
 
     /** One statement avoids mixing payment, snapshot and allocation states from separate reads. */
     public PaymentDetailSource detail(long userId,long paymentId) {
@@ -46,36 +47,15 @@ public class PaymentReadRepository {
 
     /** Aggregate and page share one read-only repeatable-read transaction; joins never multiply totals. */
     public PaymentListSource list(long userId,PaymentListFilter filter) {
-        if(userId<=0)throw new IllegalArgumentException("Positive internal owner required");
-        var params=new HashMap<String,Object>();params.put("user",userId);
-        var where=new StringBuilder(" WHERE p.user_id=:user");
-        if(filter.loanId()!=null) {
-            var exists=jdbc.queryForObject("SELECT count(*) FROM loans WHERE user_id=:user AND id=:loan",
-                Map.of("user",userId,"loan",filter.loanId()),Long.class);
-            if(exists==0)throw new ApiException(HttpStatus.NOT_FOUND,"LOAN_NOT_FOUND","대출을 찾을 수 없습니다.");
-            where.append(" AND p.loan_id=:loan");params.put("loan",filter.loanId());
-        }
-        if(filter.from()!=null){where.append(" AND p.paid_at>=:from");params.put("from",filter.from());}
-        if(filter.to()!=null){where.append(" AND p.paid_at<=:to");params.put("to",filter.to());}
-        if(filter.type()!=null){where.append(" AND p.payment_type=:type");params.put("type",filter.type().name());}
-        var totals=jdbc.queryForObject("""
-            SELECT count(*) AS count,coalesce(sum(amount),0) AS amount,coalesce(sum(principal_amount),0) AS principal,
-                coalesce(sum(interest_amount),0) AS interest,coalesce(sum(extra_amount),0) AS extra,
-                coalesce(sum(fee_amount),0) AS fee,coalesce(sum(savings_used_amount),0) AS savings_used
-            FROM payments p
-            """+where,params,(rs,i)->{
-                try {return new PaymentListSource(rs.getLong("count"),amount(rs,"amount"),amount(rs,"principal"),amount(rs,"interest"),
-                    amount(rs,"extra"),amount(rs,"fee"),amount(rs,"savings_used"),List.of());}
-                catch(ArithmeticException ex){throw ApiException.unavailable();}
-            });
+        var selection=PaymentSqlFilter.create(userId,filter.loanId(),filter.from(),filter.to(),filter.type());
+        var params=new HashMap<>(selection.parameters());var where=selection.where();
+        var totals=actuals.aggregate(userId,filter.loanId(),filter.from(),filter.to(),filter.type());
         params.put("limit",filter.pageSize());params.put("offset",filter.offset());
-        List<PaymentDetailSource> rows=totals.count()<=filter.offset()?List.of():jdbc.query("WITH selected AS (SELECT p.* FROM payments p"+where+" "+"""
+        List<PaymentDetailSource> rows=totals.paymentCount()<=filter.offset()?List.of():jdbc.query("WITH selected AS (SELECT p.* FROM payments p"+where+" "+"""
             ORDER BY p.paid_at DESC,p.id DESC LIMIT :limit OFFSET :offset)
             """+DETAIL_SELECT.formatted("selected")+" ORDER BY p.paid_at DESC,p.id DESC,d.due_date,d.id",params,PaymentReadRepository::readRows);
-        return new PaymentListSource(totals.count(),totals.amount(),totals.principal(),totals.interest(),totals.extra(),totals.fee(),totals.savingsUsed(),rows);
+        return new PaymentListSource(totals.paymentCount(),totals.amount(),totals.regularPrincipal(),totals.interest(),totals.extraPrincipal(),totals.fee(),totals.savingsUsed(),rows);
     }
-
-    private static long amount(ResultSet rs,String column)throws SQLException {return rs.getBigDecimal(column).longValueExact();}
 
     /** Rows must be contiguous per payment, then ordered by its due date/ID. */
     private static List<PaymentDetailSource> readRows(ResultSet rs)throws SQLException {
