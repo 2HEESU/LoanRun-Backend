@@ -1,0 +1,6 @@
+package com.loanrun.repaymentsaving.dto;
+
+import java.math.BigDecimal;
+
+public record SavingDeleted(long savingId,boolean deleted,long loanId,long savingsBalance,long requiredMonthlySaving,
+    long plannedSavingAmount,long actualSavingAmount,BigDecimal savingProgressPct,long remainingPrincipal,boolean reportStale) {}

@@ -13,6 +13,10 @@ public final class SavingUpdatePolicy {
     private SavingUpdatePolicy() {}
     private static final BigInteger MAX=BigInteger.valueOf(Long.MAX_VALUE);
     private static final class Day {BigInteger additions=BigInteger.ZERO,withdrawals=BigInteger.ZERO;}
+    /** Removing a record has the same asset effect as replacing its contribution with zero. */
+    public static void verifyRemoval(Loan loan,Snapshot source,Saving original) {
+        verify(loan,source,original,original.savedAt(),0);
+    }
     public static void verify(Loan loan,Snapshot source,Saving original,LocalDate date,long amount) {
         // Existing malformed sources are unavailable; proposed negative balances/overflow are a conflict.
         LoanSavingsCalculator.balance(loan,source);

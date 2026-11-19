@@ -45,5 +45,10 @@ public class SavingWriteRepository {
             """,date,amount,userId,original.loanId(),original.id(),original.savedAt(),original.amount());
         if(changed!=1)throw new ApiException(HttpStatus.CONFLICT,"SAVING_CONFLICT","적립 잔액 또는 이미 사용된 금액과 충돌합니다.");
     }
+    public void delete(long userId,Saving original) {
+        int changed=jdbc.update("DELETE FROM repayment_savings WHERE user_id=? AND loan_id=? AND id=? AND saved_at=? AND amount=?",
+            userId,original.loanId(),original.id(),original.savedAt(),original.amount());
+        if(changed!=1)throw new ApiException(HttpStatus.CONFLICT,"SAVING_CONFLICT","적립 잔액 또는 이미 사용된 금액과 충돌합니다.");
+    }
     private static ApiException missing(){return new ApiException(HttpStatus.NOT_FOUND,"SAVING_NOT_FOUND","리소스를 찾을 수 없습니다.");}
 }

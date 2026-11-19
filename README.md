@@ -91,7 +91,7 @@ revision and replay response commit together for an actual flag change. Without 
 provider a changed request returns 503 and saves nothing. An unchanged request skips recalculation/revision
 and returns `report_stale: false` (no additional invalidation). See [confirmation states, locking and integration limits](docs/DUE_CONFIRMATION.md).
 
-Current routes: PATCH `/api/repayment-savings/{saving_id}/`, GET/POST `/api/repayment-savings/`, GET/POST `/api/loans/`, POST `/api/loans/preview/`, GET `/api/loans/{loan_id}/rate-history/`, GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
+Current routes: PATCH/DELETE `/api/repayment-savings/{saving_id}/`, GET/POST `/api/repayment-savings/`, GET/POST `/api/loans/`, POST `/api/loans/preview/`, GET `/api/loans/{loan_id}/rate-history/`, GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
 GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`, POST `/api/risks/simulate/`, GET `/api/payments/`, GET `/api/payments/{payment_id}/`, PATCH `/api/payments/schedule/{due_item_id}/confirmation/`.
 Further domain endpoints are tracked locally as pending until implemented and tested.
 
@@ -162,3 +162,7 @@ provider it returns 503 and stores nothing. See [saving creation and integration
 Saving updates: `PATCH /api/repayment-savings/{saving_id}/` preserves omitted fields and rejects nulls,
 locked history and unsafe use-funded changes. Actual changes require budget recalculation; unchanged
 requests skip it and do not bump revision. See [saving update safety and integration](docs/SAVING_UPDATE.md).
+
+Saving deletion: `DELETE /api/repayment-savings/{saving_id}/` requires `Idempotency-Key` and no body.
+It reuses the asset safety policy and atomically removes one record, recalculates and bumps revision.
+Without the real budget provider it returns 503 and retains the original. See [saving deletion](docs/SAVING_DELETE.md).
