@@ -218,3 +218,5 @@ Current plan views: `GET /api/repayment-plans/` requires real version/budget sou
 - API #27 월별 상환 통계: [관측·현금/적립·과거 목표/잔액 조건](docs/PAYMENT_MONTHLY_SUMMARY_API.md). 미기록 월은 실제 0원으로 처리하지 않음.
 
 - API #22 상환 계획 미리보기: [직접/성향/역산·PRO 전략·비교/보존 조건](docs/PLAN_PREVIEW_API.md). 현재·제안 동일 원천 비교, 저장 없음, 제안 장기 목표와 당월 override 구분.
+
+- API #21 계획 저장: [미리보기 재검증·불변 저장·멱등/롤백 및 DB 적용 조건](docs/PLAN_SAVE_API.md).
