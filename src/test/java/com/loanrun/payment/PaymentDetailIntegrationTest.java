@@ -88,6 +88,17 @@ class PaymentDetailIntegrationTest {
         var ids=new ArrayList<Long>();data.path("results").forEach(row->ids.add(row.path("payment_id").longValue()));return ids;
     }
 
+    @Test void confirmationWithoutRealBudgetProviderReturns503AndSavesNoFinancialOrReplayState()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner),due=due(owner,loan,"2026-03-10");
+        var response=browser.send(HttpRequest.newBuilder(URI.create("http://localhost:"+port+"/api/payments/schedule/"+due+"/confirmation/"))
+            .header("Origin","http://localhost:5173").header("Content-Type","application/json").header("Idempotency-Key","missing-budget")
+            .method("PATCH",HttpRequest.BodyPublishers.ofString("{\"unpaid_confirmed\":true}")).build(),HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(503);assertThat(json(response).path("code").asText()).isEqualTo("SERVICE_UNAVAILABLE");
+        assertThat(jdbc.queryForObject("SELECT confirmed_unpaid FROM due_items WHERE id=?",Boolean.class,due)).isFalse();
+        assertThat(jdbc.queryForObject("SELECT revision FROM demo_users WHERE id=?",Long.class,owner)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM idempotency_records WHERE user_id=?",Long.class,owner)).isZero();
+    }
+
     @Test void emptyListUsesExactDefaultsEnvelopeAndZeroQueryTotals()throws Exception {
         var browser=browser();owner(browser);
         var response=get(browser,"/api/payments/");assertThat(response.statusCode()).isEqualTo(200);

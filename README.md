@@ -84,8 +84,14 @@ It uses inclusive actual-date filters, stable newest-first pages (default 1/20, 
 full-filter count/totals independent of the page. Items reuse payment detail, including all due allocations.
 See [pagination, ownership and aggregate semantics](docs/PAYMENT_LIST.md).
 
+Due confirmation: `PATCH /api/payments/schedule/{due_item_id}/confirmation/` accepts
+`{"unpaid_confirmed":true}` or false with required `Idempotency-Key`. Only past unrecorded regular dues
+can be confirmed/cancelled; actual payments and assets remain unchanged. The flag, budget recalculation,
+revision and replay response commit together. Without the real recalculation provider it returns 503 and
+saves nothing. See [confirmation states, locking and integration limits](docs/DUE_CONFIRMATION.md).
+
 Current routes: POST `/api/loans/`, POST `/api/loans/preview/`, GET `/api/loans/{loan_id}/rate-history/`, GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
-GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`, POST `/api/risks/simulate/`, GET `/api/payments/`, GET `/api/payments/{payment_id}/`.
+GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`, POST `/api/risks/simulate/`, GET `/api/payments/`, GET `/api/payments/{payment_id}/`, PATCH `/api/payments/schedule/{due_item_id}/confirmation/`.
 Further domain endpoints are tracked locally as pending until implemented and tested.
 
 Export accepts `format=csv` and optional `start_month`/`end_month` in `YYYY-MM` form.

@@ -107,3 +107,15 @@ Team 1 now has five HTTP operations implemented (#13, #14, #18, #24, #28); #13 s
 recalculation. The other 19 operations, financial query projections and budget integration are pending
 as separate features, not blockers to merging these completed read APIs. Frontend/deployment remain
 unverified. Local and CI results are recorded in the feature PR.
+
+## Follow-up: due confirmation (Issue #93)
+
+After payment-list PR #92 merged at d1771d4, API #31 adds mandatory-key owner-scoped overdue due
+confirmation/cancellation using the shared user lock and durable idempotency service. Partial/paid/zero
+obligations are rejected, existing ledger/assets remain intact, and the flag/recalculation/revision/response
+are atomic. PostgreSQL/HTTP success tests use only a test budget hook; normal runtime has no replacement
+provider and returns 503 without persisting until real recalculation/query integration is available.
+No schema, common interface, environment/dependency or Team 2 code changes. Team 1 has six operations
+implemented (#13, #14, #18, #24, #28, #31), with #13/#31 integration-blocked by actual recalculation.
+The other 18 operations, financial query projections and real budget integration remain pending. This
+is not a frontend or deployment claim. Validation results are recorded in the feature PR.
