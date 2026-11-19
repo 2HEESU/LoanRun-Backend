@@ -224,3 +224,5 @@ Current plan views: `GET /api/repayment-plans/` requires real version/budget sou
 - API #23 PRO 전체 계획: [실제 저장 상태·가계 집계·재검토 조건](docs/OVERALL_PLAN_API.md).
 
 - API #26 납부 일정: [저장 회차·실적 귀속·목표 원천 및 미생성 미래 회차](docs/PAYMENT_SCHEDULE_API.md).
+
+- API #25 납부 등록: [실제 구성·회차 충당·원장 재처리·적립 사용·원자적 재정산](docs/PAYMENT_CREATE_API.md).
