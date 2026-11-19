@@ -5,9 +5,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 
-final class PrepaymentFees {
+public final class PrepaymentFees {
     private PrepaymentFees() {}
-    record Extra(long principal, Long fee, long cash) {}
+    public record Extra(long principal, Long fee, long cash) {}
 
     /** null means the contract does not establish the fee, including unsupported loan types. */
     static BigDecimal rate(LoanTerms loan, LocalDate date) {
@@ -36,7 +36,7 @@ final class PrepaymentFees {
         return rate == null ? null : RepaymentMath.won(BigDecimal.valueOf(principal).multiply(rate));
     }
 
-    static Extra withinCash(LoanTerms loan, LocalDate date, long balance, long cash) {
+    public static Extra withinCash(LoanTerms loan, LocalDate date, long balance, long cash) {
         var rate = rate(loan, date);
         if (rate == null) {
             // Gross-interest projection only: the fee and total cash remain unknown in the result.
