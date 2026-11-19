@@ -189,4 +189,3 @@ class SavingCreateIntegrationTest {
         assertThat(count("repayment_savings",user)).isEqualTo(1);assertThat(count("idempotency_records",user)).isZero();assertThat(revision(user)).isEqualTo(rev);
     }
 }
-
