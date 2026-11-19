@@ -178,3 +178,7 @@ query port is installed. See [source version semantics and activation dependenci
 Internal plan source queries now combine V2 registration goals and version history by effective date
 and separate knowledge cutoff, preserving missing historical bases as null. No runtime API is rewired.
 See [plan source query boundaries](docs/PLAN_SOURCE_QUERY.md).
+
+Plan projection input selection distinguishes verified monthly principal/saving averages from saved cash goals.
+Unknown months remain unknown; payoff simulation and runtime observation evidence are still pending.
+See [observation window, amount units and integration boundaries](docs/PLAN_PROJECTION_BASIS.md).
