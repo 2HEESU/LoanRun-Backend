@@ -242,3 +242,12 @@ V2 기본version1을 유지하며 이후 목표/입력금액·효력일·입력r
 
 검증: JDK21 `./gradlew clean build` 성공, 전체450 tests / 0 failures/errors/skipped(신규 저장소17).
 최초 검증은 Spring의 인자 예외 변환을 테스트가 고려하지 못해1건 실패했고, 실제 구조에 맞춰 수정 후 통과했다.
+
+## Issue #124 — 계획 원천 이력 조회 조합
+
+#123 병합(a46b592)을 개인 develop/Fork에 반영했다. 내부 조회는 V2등록 기본 계획과 새 버전을
+적용일/확인시점으로 조합한다. 현재 원금·약정으로 과거를 채우지 않고 소유권·보존이력을 지킨다.
+V4없음은 빈이력이 아니라503이며 명시적V2-only조회와 구분한다. DB/공통포트/기존API 변경 없음.
+[원천 조합·조회 한계](PLAN_SOURCE_QUERY.md) 참조. 새 endpoint/API 완료 개수 증가는 없다.
+
+검증: JDK21 `./gradlew clean build` 성공, 전체459 tests / 0 failures/errors/skipped(신규9).

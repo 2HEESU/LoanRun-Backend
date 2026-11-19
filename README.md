@@ -174,3 +174,7 @@ recalculation is required. See [loan deletion, preserved history and integration
 Individual plan version storage is prepared as an unnumbered SQL proposal and isolated repository tests.
 It preserves V2 registration version1 and appends later source versions; no runtime consumer or partial
 query port is installed. See [source version semantics and activation dependencies](docs/PLAN_VERSION_STORAGE.md).
+
+Internal plan source queries now combine V2 registration goals and version history by effective date
+and separate knowledge cutoff, preserving missing historical bases as null. No runtime API is rewired.
+See [plan source query boundaries](docs/PLAN_SOURCE_QUERY.md).

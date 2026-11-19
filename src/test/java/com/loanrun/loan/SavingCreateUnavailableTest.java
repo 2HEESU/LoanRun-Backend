@@ -7,6 +7,8 @@ import com.loanrun.common.contract.FinanceModels.FeeMethod;
 import com.loanrun.loan.domain.PreparedLoan;
 import com.loanrun.loan.repository.LoanRegistrationRepository;
 import com.loanrun.loan.service.LoanInputValidator;
+import com.loanrun.repaymentplan.service.PlanSourceQueryService;
+import com.loanrun.common.error.ApiException;
 import java.net.*;
 import java.net.http.*;
 import java.time.*;
@@ -39,6 +41,7 @@ class SavingCreateUnavailableTest {
     @Autowired Clock clock;
     @Autowired ObjectMapper mapper;
     @Autowired JdbcTemplate jdbc;
+    @Autowired PlanSourceQueryService planSources;
     @LocalServerPort int port;
     @Test void actualHttpWithoutBudgetImplementationReturns503AndStoresNothing()throws Exception {
         assertThat(budgets.getIfAvailable()).isNull();
@@ -114,5 +117,15 @@ class SavingCreateUnavailableTest {
         assertThat(jdbc.queryForMap("SELECT * FROM loans WHERE id=?",loan)).isEqualTo(original);
         assertThat(jdbc.queryForObject("SELECT revision FROM demo_users WHERE id=?",Long.class,user)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM idempotency_records WHERE user_id=?",Long.class,user)).isZero();
+    }
+    @Test void v2BaselineCanBeReadButMissingVersionTableIsNotTreatedAsNoChanges()throws Exception {
+        long user=jdbc.queryForObject("INSERT INTO demo_users(session_digest,created_at,updated_at) VALUES (?,?,?) RETURNING id",Long.class,
+            java.util.UUID.randomUUID().toString(),java.sql.Timestamp.from(clock.instant()),java.sql.Timestamp.from(clock.instant()));
+        var input=new LoanPreviewTest().body();var validated=validator.validate(user,input);
+        long loan=new TransactionTemplate(transactions).execute(s->fixtureRepository.insert(new PreparedLoan(validated,FeeMethod.UNKNOWN,null,1200000L,0,List.of()),clock.instant()));
+        assertThat(planSources.registration(user,loan).version()).isEqualTo(1);
+        assertThatThrownBy(()->planSources.forDate(user,loan,LocalDate.of(2026,3,25),LocalDate.of(2026,3,1)))
+            .isInstanceOfSatisfying(ApiException.class,e->assertThat(e.code()).isEqualTo("SERVICE_UNAVAILABLE"));
+        assertThat(jdbc.queryForObject("SELECT to_regclass('repayment_plan_versions')",String.class)).isNull();
     }
 }
