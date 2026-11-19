@@ -82,3 +82,15 @@ or Team 2 code is changed. Team 1 has three HTTP operations implemented (#13, #1
 requiring the real budget recalculation provider. The other 21 Team 1 operations, LoanQueryPort financial
 projections, PlanQueryPort, frontend integration and deployment remain pending. Validation counts are
 recorded in the feature PR.
+
+## Follow-up: payment detail (Issue #89)
+
+After rate-history PR #88 merged at c179067, API #28 GET /api/payments/{payment_id}/ reads the session
+owner's stored payment and all due allocations through a single owner-scoped SQL statement. Original
+amounts/fees/savings use, KST timestamps, per-due delay and snapshot-date editability are preserved.
+PAID/DELETED loan history remains visible; foreign/missing records return 404. This read requires no
+budget/query provider and makes no financial writes. No schema/shared contract or Team 2 code changes.
+Team 1 now has four HTTP operations implemented (#13, #14, #18, #28); #13 still requires the real
+budget provider. The remaining 20 Team 1 operations and financial query-port/budget integration are
+pending. This does not implement payment writes, frontend integration or deployment. Test results are
+recorded in the feature PR.

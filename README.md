@@ -74,8 +74,13 @@ order, including the registration rate with an unknown (null) previous rate. For
 loans return the same 404; paid-loan history remains visible. No financial sources are changed. See
 [rate history behavior and tests](docs/LOAN_RATE_HISTORY.md). Rate change registration is still pending.
 
+Payment detail: `GET /api/payments/{payment_id}/` returns the session owner's preserved actual payment,
+including fee/savings-use components, every saved due allocation and snapshot-based editability.
+History remains readable for PAID/DELETED loans. Missing/foreign records return the same 404; no actuals
+are rewritten or inferred. See [payment detail semantics](docs/PAYMENT_DETAIL.md). Payment writes remain pending.
+
 Current routes: POST `/api/loans/`, POST `/api/loans/preview/`, GET `/api/loans/{loan_id}/rate-history/`, GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
-GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`, POST `/api/risks/simulate/`.
+GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`, POST `/api/risks/simulate/`, GET `/api/payments/{payment_id}/`.
 Further domain endpoints are tracked locally as pending until implemented and tested.
 
 Export accepts `format=csv` and optional `start_month`/`end_month` in `YYYY-MM` form.
