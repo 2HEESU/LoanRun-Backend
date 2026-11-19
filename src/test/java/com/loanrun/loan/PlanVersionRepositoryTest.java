@@ -9,6 +9,8 @@ import com.loanrun.loan.service.LoanRegistrationService;
 import com.loanrun.repaymentplan.domain.PlanVersion;
 import com.loanrun.repaymentplan.domain.PlanVersion.*;
 import com.loanrun.repaymentplan.repository.PlanVersionRepository;
+import com.loanrun.repaymentplan.service.PlanSourceQueryService;
+import com.loanrun.repaymentplan.domain.SavedPlanSource.Origin;
 import java.nio.file.*;
 import java.sql.Timestamp;
 import java.time.*;
@@ -36,9 +38,16 @@ import org.testcontainers.junit.jupiter.*;
 class PlanVersionRepositoryTest {
     @Container static final PostgreSQLContainer<?> DB=new PostgreSQLContainer<>("postgres:16.16-bookworm");
     @DynamicPropertySource static void db(DynamicPropertyRegistry r){r.add("spring.datasource.url",DB::getJdbcUrl);r.add("spring.datasource.username",DB::getUsername);r.add("spring.datasource.password",DB::getPassword);}
-    @TestConfiguration static class Config {@Bean @Primary Clock fixed(){return Clock.fixed(Instant.parse("2026-02-28T15:30:00Z"),ZoneId.of("Asia/Seoul"));}}
+    static class TestClock extends Clock {
+        Instant value=Instant.parse("2026-02-28T15:30:00Z");
+        public ZoneId getZone(){return ZoneId.of("Asia/Seoul");}
+        public Clock withZone(ZoneId zone){return Clock.fixed(value,zone);}
+        public Instant instant(){return value;}
+    }
+    @TestConfiguration static class Config {@Bean @Primary TestClock fixed(){return new TestClock();}}
     @MockitoBean BudgetRecalculationPort budget; // Loan fixture only, never a production provider.
-    @Autowired Clock clock;
+    @Autowired TestClock clock;
+    @Autowired PlanSourceQueryService queries;
     @Autowired JdbcTemplate jdbc;
     @Autowired TransactionTemplate tx;
     @Autowired PlanVersionRepository plans;
@@ -47,6 +56,7 @@ class PlanVersionRepositoryTest {
     @Autowired RevisionPort revisions;
     @Autowired ObjectProvider<PlanQueryPort> publicPlans;
     @BeforeEach void proposal()throws Exception {
+        clock.value=Instant.parse("2026-02-28T15:30:00Z");
         if(jdbc.queryForObject("SELECT to_regclass('repayment_plan_versions')",String.class)==null)
             jdbc.execute(Files.readString(Path.of("docs/sql/repayment_plan_versions_proposal.sql")));
     }
@@ -183,5 +193,52 @@ class PlanVersionRepositoryTest {
     @Test void proposalDoesNotAlterFlywayOrInstallAnIncompleteRuntimePort() {
         assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank",String.class)).containsExactly("1","2");
         assertThat(publicPlans.getIfAvailable()).isNull();
+    }
+    @Test void registrationUsesOriginalBalanceAndDoesNotInventMissingHistoricalTerms()throws Exception {
+        long u=user(),l=loan(u,false);jdbc.update("UPDATE loans SET remaining_principal=9000000,snapshot_principal=9000000,snapshot_date='2026-03-02' WHERE id=?",l);
+        clock.value=Instant.parse("2026-03-02T00:00:00Z");var original=queries.registration(u,l);
+        assertThat(original.origin()).isEqualTo(Origin.REGISTRATION);assertThat(original.startPrincipal()).isEqualTo(12000000);
+        assertThat(original.basisTerms()).isNull();assertThat(original.inputs()).isNull();assertThat(original.monthlyExtraCash()).isZero();
+        assertThat(original.version()).isEqualTo(1);assertThat(original.targetPayoffDate()).isEqualTo(date(12));
+    }
+    @Test void dateSelectionCombinesV2BaselineWithOnlyEffectiveStoredVersions()throws Exception {
+        long u=user(),l=loan(u,false);var v=append(u,1,draft(u,l,100,date(4)));
+        assertThat(queries.forDate(u,l,date(3),date(3).withDayOfMonth(1)).orElseThrow().origin()).isEqualTo(Origin.REGISTRATION);
+        assertThat(queries.forDate(u,l,date(4),LocalDate.of(2026,3,1)).orElseThrow().version()).isEqualTo(v.version());
+        assertThat(queries.forDate(u,l,LocalDate.of(2026,3,24),LocalDate.of(2026,3,1))).isEmpty();
+    }
+    @Test void observationCutoffKeepsLaterRecordedGoalsOutOfEarlierKnowledge()throws Exception {
+        long u=user(),l=loan(u,false);clock.value=Instant.parse("2026-03-19T15:00:00Z");append(u,1,draft(u,l,100,date(3)));
+        assertThat(queries.forDate(u,l,date(3),LocalDate.of(2026,3,19)).orElseThrow().version()).isEqualTo(1);
+        assertThat(queries.forDate(u,l,date(3),LocalDate.of(2026,3,20)).orElseThrow().version()).isEqualTo(2);
+        assertThat(queries.forDate(u,l,date(3),LocalDate.of(2026,2,28))).isEmpty();
+    }
+    @Test void highestApplicableVersionPreservesItsOwnBasisAndRequestedZero()throws Exception {
+        long u=user(),l=loan(u,false);append(u,1,draft(u,l,100,date(4)));append(u,2,draft(u,l,0,date(4)));
+        var plan=queries.forDate(u,l,date(4),LocalDate.of(2026,3,1)).orElseThrow();
+        assertThat(plan.version()).isEqualTo(3);assertThat(plan.origin()).isEqualTo(Origin.PLAN_VERSION);
+        assertThat(plan.inputs().extraMonthlyPayment()).isZero();assertThat(plan.basisTerms().outstanding()).isEqualTo(12000000);
+        assertThat(plan.startPrincipal()).isEqualTo(12000000);
+    }
+    @Test void missingRegistrationBalanceIsUnknownRatherThanCurrentBalance()throws Exception {
+        long u=user(),l=loan(u,false);jdbc.update("DELETE FROM loan_balance_snapshots WHERE loan_id=?",l);
+        assertThat(queries.registration(u,l).startPrincipal()).isNull();
+    }
+    @Test void laterRecordedBaselineEvidenceIsNotClaimedKnownAtAnEarlierCutoff()throws Exception {
+        long u=user(),l=loan(u,false);clock.value=Instant.parse("2026-03-19T15:00:00Z");
+        jdbc.update("UPDATE loan_balance_snapshots SET created_at=? WHERE loan_id=?",Timestamp.from(clock.instant()),l);
+        assertThat(queries.forDate(u,l,date(3),LocalDate.of(2026,3,19)).orElseThrow().startPrincipal()).isNull();
+        assertThat(queries.forDate(u,l,date(3),LocalDate.of(2026,3,20)).orElseThrow().startPrincipal()).isEqualTo(12000000);
+    }
+    @Test void sourceQueriesPreserveInactiveHistoryButHideForeignOwnership()throws Exception {
+        long u=user(),other=user(),l=loan(u,false);append(u,1,draft(u,l,100,date(3)));jdbc.update("UPDATE loans SET status='DELETED' WHERE id=?",l);
+        assertThat(queries.forDate(u,l,date(3),LocalDate.of(2026,3,1)).orElseThrow().version()).isEqualTo(2);
+        assertThatThrownBy(()->queries.registration(other,l)).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.code()).isEqualTo("LOAN_NOT_FOUND"));
+        assertThatThrownBy(()->queries.forDate(other,l,date(3),LocalDate.of(2026,3,1))).isInstanceOf(ApiException.class);
+    }
+    @Test void sourceReadsDoNotWriteVersionsRevisionOrFinancialFacts()throws Exception {
+        long u=user(),l=loan(u,false);append(u,1,draft(u,l,100,date(3)));var before=sources.loanSnapshot(u,l,date(3));var history=plans.versions(u,l);long revision=revisions.current(u);
+        assertThat(queries.forDate(u,l,date(3),LocalDate.of(2026,3,1))).isEqualTo(queries.forDate(u,l,date(3),LocalDate.of(2026,3,1)));
+        assertThat(sources.loanSnapshot(u,l,date(3))).isEqualTo(before);assertThat(plans.versions(u,l)).isEqualTo(history);assertThat(revisions.current(u)).isEqualTo(revision);
     }
 }
