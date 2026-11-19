@@ -251,3 +251,12 @@ V4없음은 빈이력이 아니라503이며 명시적V2-only조회와 구분한�
 [원천 조합·조회 한계](PLAN_SOURCE_QUERY.md) 참조. 새 endpoint/API 완료 개수 증가는 없다.
 
 검증: JDK21 `./gradlew clean build` 성공, 전체459 tests / 0 failures/errors/skipped(신규9).
+
+## Issue #126 — 관측 실적 기반 계획 계산 입력 선택
+
+#125 병합(e21d2fa)을 반영했다. 직전6개 완료 달력 월에서 등록월 이후 확인된 실적만 평균하며,
+확인된0원은 포함하고 미기록 월은 제외한다. 분할형 추가 원금/계획 납부 현금/BULLET 적립액을
+구분한다. 관측이 없으면 설정 계획, 둘 다 없으면INSUFFICIENT/null이다. HTTP/DB/공통포트 변경 없음.
+[입력 선택과 후속 연결 책임](PLAN_PROJECTION_BASIS.md) 참조. 관측 근거 공급·수수료/완납 계산·API 연결은 후속이다.
+
+검증: JDK21 `./gradlew clean build` 성공, 전체474 tests / 0 failures/errors/skipped(신규15).
