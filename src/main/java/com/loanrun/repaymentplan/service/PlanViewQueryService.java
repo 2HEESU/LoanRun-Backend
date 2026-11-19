@@ -44,7 +44,7 @@ public class PlanViewQueryService {
             var rows=engine.simulate(new SimulationInput(List.of(current.terms()),date,months,Map.of(),Map.of(),null,"NONE")).rows();
             if(!rows.isEmpty())basic=Math.addExact(rows.getFirst().scheduledPrincipal(),rows.getFirst().interest());
         }
-        Long plannedExtra=bullet?0L:source.monthlyExtraCash()==0?0L:null;
+        Long plannedExtra=bullet||source.monthlyExtraCash()==0?0L:null;
         Long plannedSaving=bullet?null:0L;
         if(schedule.planned()!=null) {
             long e=0,s=0;
@@ -90,7 +90,7 @@ public class PlanViewQueryService {
         Long extraGap=perf==null?null:perf.monthlyExtra().gap(),savingGap=perf==null?null:perf.cumulativeSaving().gap();
         if(source.effectiveDate().isAfter(YearMonth.from(date).atDay(1)))extraGap=null;
         if(override!=null){track=new Track("UNRECORDED".equals(regular)?"UNRECORDED":null,"INSUFFICIENT",regular);extraGap=null;savingGap=null;}
-        Long required=bullet&&target!=null?LoanSavingsCalculator.required(loan,assets,date,target):bullet?null:0L;
+        Long required=0L;if(bullet)required=target==null?null:LoanSavingsCalculator.required(loan,assets,date,target);
         BigDecimal savingPct=bullet&&loan.storedRemainingPrincipal()>0?BigDecimal.valueOf(assets).multiply(BigDecimal.valueOf(100))
             .divide(BigDecimal.valueOf(loan.storedRemainingPrincipal()),2,RoundingMode.HALF_UP):null;
         Long gap=recurringCap==null?null:Math.max(0,Math.subtractExact(Math.addExact(source.monthlyExtraCash(),source.monthlySaving()),Math.max(0,recurringCap)));
