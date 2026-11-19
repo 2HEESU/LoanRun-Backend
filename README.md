@@ -198,3 +198,7 @@ See [reference schedule generation and evidence limits](docs/PLAN_REFERENCE_SCHE
 Current plan observation queries now read real payment/saving months and validate independent completion evidence.
 With no real completion source installed, inputs remain unobserved/null and preserve the existing plan fallback.
 See [source fingerprints, captured time and runtime limits](docs/PLAN_OBSERVATION_QUERY.md).
+
+Current individual payoff queries now compose actual loan terms, saved goals and verified observations with
+the existing engine. Unsupported frozen obligations stay unknown; a missing version table remains 503.
+See [current-source projection and remaining API/DB integration](docs/CURRENT_PLAN_PROJECTION.md).

@@ -1,7 +1,6 @@
 package com.loanrun.finance.engine;
 
 import com.loanrun.common.contract.FinanceModels.*;
-import com.loanrun.common.contract.RepaymentEngine;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -9,7 +8,7 @@ import java.time.YearMonth;
 import java.util.*;
 
 /** The single pure calculator. All mutable state belongs to one invocation. */
-public final class DefaultRepaymentEngine implements RepaymentEngine {
+public final class DefaultRepaymentEngine implements PrincipalRepaymentEngine {
     private static final Set<String> RULES = Set.of("NONE", "KEEP_PLANS", "MANUAL", "RATE_RISK",
         "INTEREST_SAVING", "PARALLEL", "FAST", "BALANCED", "STABLE", "SAVINGS");
 
@@ -20,6 +19,7 @@ public final class DefaultRepaymentEngine implements RepaymentEngine {
     }
 
     /** Team 1 internal input: principal targets are distinct from fee-inclusive cash budgets. */
+    @Override
     public SimulationResult simulateWithExtraPrincipal(SimulationInput input,
             Map<YearMonth, Map<Long, Long>> monthlyPrincipal) {
         validate(input);

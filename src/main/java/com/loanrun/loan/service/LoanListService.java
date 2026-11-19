@@ -3,8 +3,8 @@ package com.loanrun.loan.service;
 import com.loanrun.common.contract.FinanceModels.*;
 import com.loanrun.common.contract.RepaymentEngine;
 import com.loanrun.common.error.ApiException;
-import com.loanrun.finance.engine.RepaymentDates;
 import com.loanrun.loan.domain.LoanSavingsCalculator;
+import com.loanrun.loan.domain.LoanTermMapper;
 import com.loanrun.loan.dto.*;
 import com.loanrun.loan.read.LoanSourceRepository;
 import com.loanrun.loan.read.LoanSources.*;
@@ -77,7 +77,7 @@ public class LoanListService {
             }
             boolean completed=due.requiredAmount()>0&&allocated>=due.requiredAmount();
             if(completed||due.requiredAmount()==0&&due.dueDate().isBefore(today)) {
-                cursor=after(l,due.dueDate());continue;
+                cursor=LoanTermMapper.after(l,due.dueDate());continue;
             }
             // Frozen first-cycle interest survives an actual extra-principal payment during that cycle.
             return new Next(due.dueDate(),due.contractualAmount(),Math.addExact(due.estimatedPrincipal(),due.estimatedInterest()),due.requiredAmount());
@@ -85,7 +85,7 @@ public class LoanListService {
         if(cursor.isAfter(l.maturityDate()))throw ApiException.unavailable();
         // A bank amount only belongs to its original cycle. A completed/expired cycle cannot lend it to a later one.
         Long contractual=cursor.equals(l.storedNextDueDate())?l.contractualNextAmount():null;
-        var terms=terms(l,cursor,contractual,savings);
+        var terms=LoanTermMapper.current(l,cursor,contractual,savings);
         int horizon=Math.toIntExact(java.time.temporal.ChronoUnit.MONTHS.between(YearMonth.from(today),YearMonth.from(cursor))+1);
         var rows=engine.simulate(new SimulationInput(List.of(terms),today,Math.max(1,horizon),Map.of(),Map.of(),null,"NONE")).rows();
         if(rows.isEmpty())throw ApiException.unavailable();
@@ -93,18 +93,6 @@ public class LoanListService {
         return new Next(first.date(),contractual,estimate,contractual==null?estimate:contractual);
     }
 
-    private static LocalDate after(Loan l,LocalDate date) {
-        if(!date.isBefore(l.maturityDate()))return l.maturityDate().plusDays(1);
-        var next=RepaymentDates.dueDate(YearMonth.from(date).plusMonths(1),l.paymentDay());
-        return YearMonth.from(next).isBefore(YearMonth.from(l.maturityDate()))?next:l.maturityDate();
-    }
-
-    private static LoanTerms terms(Loan l,LocalDate next,Long contractual,long savings) {
-        return new LoanTerms(l.loanId(),l.userId(),l.productName(),l.loanType(),l.originalPrincipal(),l.storedRemainingPrincipal(),
-            l.latestSnapshotDate(),l.annualRate(),l.rateType(),l.method(),l.graceEnd(),l.postGraceMethod(),next,l.paymentDay(),l.maturityDate(),
-            contractual,l.baseAnchor(),l.fixedPrincipal(),l.prepaymentPolicy(),Boolean.TRUE.equals(l.feeExempt())?FeeMethod.NONE:l.originalFeeMethod(),
-            l.feeRate(),l.feeStart(),l.feeEnd(),l.initialSavings(),savings,l.storedStatus(),l.nextRateResetDate());
-    }
     private record Next(LocalDate date,Long contractual,long estimate,long required) {}
     private record View(LoanCreated loan,long required) {}
 }

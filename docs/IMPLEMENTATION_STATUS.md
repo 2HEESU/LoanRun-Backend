@@ -297,3 +297,12 @@ false/null이며 정상 빈 관측과 조회 실패를 구분한다. 공통 계�
 
 검증: JDK21 `./gradlew clean build` 성공, 전체566 tests / 0 failures/errors/skipped(신규26).
 초기 검증의 테스트 import 충돌과 Spring 예외 변환 기대값 오류는 수정 후 통과했다.
+
+## Issue #136 — 현재 대출 기준 계획 예상 완납 조회 조합
+
+#135 병합(670a8e8)을 개인 develop/Fork에 반영했다. 현재 잔액/회차·저장 계획·실제 관측·기존 엔진을
+내부 조회로 연결한다. 원금을 이중 차감하지 않고 미정산·부분·동결 의무 불일치는 계산 불가다.
+목록과 약정 매핑을 재사용하며 공통 계약/DB/HTTP 변경 없음. V4 미적용은503을 유지한다.
+[현재 예상 완납 조회와 통합 한계](CURRENT_PLAN_PROJECTION.md) 참조.
+
+검증: JDK21 `./gradlew clean build` 성공, 전체583 tests / 0 failures/errors/skipped(신규17).
