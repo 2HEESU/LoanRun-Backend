@@ -5,3 +5,5 @@ PUT `/api/repayment-plans/`는 필수 Idempotency-Key와 preview_version을 받�
 계획 버전, 전체 전략 적용 이벤트, 예산 재계산, 한 번의 revision 증가와 멱등 응답은 한 트랜잭션이다. 당월 override나 실제 납부·등록 원본은 변경하지 않는다. 다중 전략 최초 반영 시에만 전체 계획 exists=true이며 후속 직접 수정은 MANUAL로 유지한다. 저장 원천 전용 내부 SavedPlanQueryService는 예산·성과/표시 서비스를 역호출하지 않는다. 공통 PlanQueryPort 런타임 어댑터는 DB baseline 합의 후 연결하며 기존 V2 적립 조회 동작을 바꾸지 않는다. 내부 currentPlans는 현재 기준, plannedAllocations는 현재/미래 월을 지원한다. 과거 active 상태/약정이 입증되지 않는 시점은 503이다.
 
 V4 불변 버전 SQL과 `docs/sql/plan_application_events_proposal.sql`은 격리 테스트용 제안이다. 후자는 전체 적용 상태·배분 우선순위를 append-only 코드로 보존한다. 런타임 Flyway 활성화/실제 DB 적용 없음. 예산 재계산/필수 저장소 부재·실패는 503 및 전체 롤백. 새 환경변수/의존성 없음.
+
+멱등 응답 재사용에도 현재 권한을 적용한다. FREE 전환 후 전략 저장을 같은 키로 재시도해도403이며, 허용되는 직접 저장 재시도는 strategy_code/전체 계획 존재 여부/우선순위를 FREE 정책으로 숨긴 응답 사본을 반환한다. 보관된 원래 멱등 응답이나 금융 revision은 재작성하지 않는다. 입력 오류는 PLAN_VALIDATION_ERROR로 통일한다.

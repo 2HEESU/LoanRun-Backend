@@ -26,9 +26,17 @@ public class PlanSaveService {
     public PlanSaveService(IdempotencyService idempotency,PlanPreviewService previews,CurrentLoanTermsQueryService current,PlanVersionRepository versions,PlanApplicationRepository applications,RevisionPort revisions,ObjectProvider<BudgetRecalculationPort> budgets,ObjectMapper mapper,Clock clock){this.idempotency=idempotency;this.previews=previews;this.current=current;this.versions=versions;this.applications=applications;this.revisions=revisions;this.budgets=budgets;this.mapper=mapper;this.clock=clock;}
     @Transactional
     public StoredResponse save(long user,PlanType access,JsonNode body,String key) {
-        try{return idempotency.execute(user,"PUT","/api/repayment-plans/",key,body,"IDEMPOTENCY_CONFLICT",()->store(user,access,body));}
+        if(access!=PlanType.PRO&&body!=null&&!body.has("plans")&&(body.has("report_id")||body.has("strategy_code")||body.has("strategy_version")))throw new ApiException(HttpStatus.FORBIDDEN,"PRO_REQUIRED","PRO 이용자만 사용할 수 있습니다.");
+        try{return currentAccess(idempotency.execute(user,"PUT","/api/repayment-plans/",key,body,"IDEMPOTENCY_CONFLICT",()->store(user,access,body)),access);}
+        catch(ApiException e){if(e.code().equals("VALIDATION_ERROR"))throw new ApiException(HttpStatus.BAD_REQUEST,"PLAN_VALIDATION_ERROR","상환 계획을 확인해 주세요.",e.errors());throw e;}
         catch(com.loanrun.repaymentplan.domain.PlanVersion.Conflict e){throw stale();}
         catch(org.springframework.dao.DataAccessException e){throw ApiException.unavailable();}
+    }
+    /** Permission filtering applies to replayed receipts too; never rewrite the stored original response. */
+    private StoredResponse currentAccess(StoredResponse response,PlanType access) {
+        if(access==PlanType.PRO)return response;if(!response.body().isObject()||!response.body().path("data").isObject())throw ApiException.unavailable();
+        ObjectNode body=response.body().deepCopy();var data=(ObjectNode)body.path("data");data.putNull("strategy_code");data.put("overall_plan_exists",false);
+        for(var key:List.of("plans","allocations"))for(var row:data.path(key))if(row.isObject())((ObjectNode)row).putNull("priority");return new StoredResponse(response.status(),body);
     }
     private StoredResponse store(long user,PlanType access,JsonNode body) {
         JsonPatch.fields(body,"plans","effective_date","report_id","strategy_code","strategy_version","preview_version");String token=JsonPatch.text(body,"preview_version",false,128);
