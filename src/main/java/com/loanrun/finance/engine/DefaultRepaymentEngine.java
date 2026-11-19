@@ -16,6 +16,34 @@ public final class DefaultRepaymentEngine implements RepaymentEngine {
     @Override
     public SimulationResult simulate(SimulationInput input) {
         validate(input);
+        return calculate(input, Map.of());
+    }
+
+    /** Team 1 internal input: principal targets are distinct from fee-inclusive cash budgets. */
+    public SimulationResult simulateWithExtraPrincipal(SimulationInput input,
+            Map<YearMonth, Map<Long, Long>> monthlyPrincipal) {
+        validate(input);
+        if (!"KEEP_PLANS".equals(input.allocationRule()))
+            throw new IllegalArgumentException("Principal projection requires pinned plans");
+        var loans = new HashMap<Long, LoanTerms>();
+        input.terms().forEach(loan -> loans.put(loan.loanId(), loan));
+        var principal = new HashMap<YearMonth, Map<Long, Long>>();
+        for (var entry : monthlyPrincipal.entrySet()) {
+            Objects.requireNonNull(entry.getKey());
+            var amounts = Map.copyOf(entry.getValue());
+            for (var amount : amounts.entrySet()) {
+                var loan = loans.get(amount.getKey());
+                if (loan == null || loan.method() == RepaymentMethod.BULLET || amount.getValue() < 0
+                        || input.monthlyAmounts().getOrDefault(entry.getKey(), List.of()).stream()
+                            .anyMatch(cash -> cash.loanId() == amount.getKey()))
+                    throw new IllegalArgumentException("Invalid or overlapping principal projection");
+            }
+            principal.put(entry.getKey(), amounts);
+        }
+        return calculate(input, Map.copyOf(principal));
+    }
+
+    private SimulationResult calculate(SimulationInput input, Map<YearMonth, Map<Long, Long>> monthlyPrincipal) {
         var warnings = new LinkedHashSet<String>();
         var states = input.terms().stream().filter(t -> t.status() == LoanStatus.ACTIVE && t.outstanding() > 0)
             .sorted(Comparator.comparingLong(LoanTerms::loanId)).map(t -> new LoanState(t, input)).toList();
@@ -56,6 +84,12 @@ public final class DefaultRepaymentEngine implements RepaymentEngine {
                 work.put(state.loan.loanId(), item);
             }
             allocate(amounts, work, input.allocationRule(), warnings);
+            for (var amount : monthlyPrincipal.getOrDefault(month, Map.of()).entrySet()) {
+                var item = work.get(amount.getKey());
+                if (eligible(item)) item.addPrincipal(amount.getValue());
+                else if (item != null && item.state.inGrace() && amount.getValue() > 0)
+                    warnings.add("GRACE_EXTRA_NOT_APPLIED");
+            }
             for (var item : work.values()) {
                 var state = item.state;
                 Long fee = PrepaymentFees.fee(state.loan, item.date, item.extraPrincipal);
@@ -301,6 +335,14 @@ public final class DefaultRepaymentEngine implements RepaymentEngine {
         final LocalDate date;
         long principal, interest, extraPrincipal, extraCash, saving, savingsUsed;
         Work(LoanState state, LocalDate date) { this.state = state; this.date = date; }
+
+        void addPrincipal(long requested) {
+            extraPrincipal = Math.min(state.balance, requested);
+            Long fee = PrepaymentFees.fee(state.loan, date, extraPrincipal);
+            extraCash = fee == null ? extraPrincipal : Math.addExact(extraPrincipal, fee);
+            state.balance -= extraPrincipal;
+            state.recalculate |= extraPrincipal > 0;
+        }
 
         long addExtra(long cash) {
             // Fee rounding applies to the period's cumulative extra principal, not each allocation pass.

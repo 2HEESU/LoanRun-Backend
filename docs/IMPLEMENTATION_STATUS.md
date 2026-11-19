@@ -260,3 +260,12 @@ V4없음은 빈이력이 아니라503이며 명시적V2-only조회와 구분한�
 [입력 선택과 후속 연결 책임](PLAN_PROJECTION_BASIS.md) 참조. 관측 근거 공급·수수료/완납 계산·API 연결은 후속이다.
 
 검증: JDK21 `./gradlew clean build` 성공, 전체474 tests / 0 failures/errors/skipped(신규15).
+
+## Issue #128 — 관측 실적 기반 예상 완납 계산
+
+#127 병합(8551fb6)을 개인 develop/Fork에 반영했다. 관측 원금에 수수료를 별도로 더하는 내부 입력을
+기존 단일 엔진에 연결하고, 계획 계산기가 관측 원금/계획 현금/BULLET 적립을 구분해 사용한다.
+미확인 수수료·거치·상환 정책·만기 부족·기간 한도를 보존하며 입력 부족은 계산 불가다.
+공통 계약/DB/HTTP 변경 없음. [계산과 실제 통합 한계](PLAN_PAYOFF_PROJECTION.md) 참조.
+
+검증: JDK21 `./gradlew clean build` 성공, 전체497 tests / 0 failures/errors/skipped(신규23).
