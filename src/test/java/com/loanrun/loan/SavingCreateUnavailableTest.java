@@ -97,4 +97,22 @@ class SavingCreateUnavailableTest {
         assertThat(jdbc.queryForObject("SELECT revision FROM demo_users WHERE id=?",Long.class,user)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM idempotency_records WHERE user_id=?",Long.class,user)).isZero();
     }
+    @Test void loanDeletionWithoutRealBudgetReturns503AndPreservesStatusWithOrWithoutKey()throws Exception {
+        assertThat(budgets.getIfAvailable()).isNull();
+        var browser=HttpClient.newBuilder().cookieHandler(new CookieManager(null,CookiePolicy.ACCEPT_ALL)).build();
+        var profile=browser.send(HttpRequest.newBuilder(URI.create("http://localhost:"+port+"/api/users/me/")).GET().build(),HttpResponse.BodyHandlers.ofString());
+        long user=mapper.readTree(profile.body()).path("data").path("user_id").longValue();
+        var input=new LoanPreviewTest().body();input.put("repayment_method","BULLET");input.putNull("prepayment_policy");
+        long loan=new TransactionTemplate(transactions).execute(s->fixtureRepository.insert(new PreparedLoan(validator.validate(user,input),FeeMethod.UNKNOWN,null,null,1200000,List.of()),clock.instant()));
+        var original=jdbc.queryForMap("SELECT * FROM loans WHERE id=?",loan);
+        for(boolean keyed:List.of(false,true)) {
+            var builder=HttpRequest.newBuilder(URI.create("http://localhost:"+port+"/api/loans/"+loan+"/")).header("Origin","http://localhost:5173");
+            if(keyed)builder.header("Idempotency-Key","missing-budget-loan");
+            var r=browser.send(builder.DELETE().build(),HttpResponse.BodyHandlers.ofString());assertThat(r.statusCode()).as(r.body()).isEqualTo(503);
+            assertThat(mapper.readTree(r.body()).path("code").asText()).isEqualTo("SERVICE_UNAVAILABLE");
+        }
+        assertThat(jdbc.queryForMap("SELECT * FROM loans WHERE id=?",loan)).isEqualTo(original);
+        assertThat(jdbc.queryForObject("SELECT revision FROM demo_users WHERE id=?",Long.class,user)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM idempotency_records WHERE user_id=?",Long.class,user)).isZero();
+    }
 }

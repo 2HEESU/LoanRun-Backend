@@ -220,3 +220,14 @@ DB/공통 계약 변경 없음.
 
 검증: JDK21 `./gradlew clean build` 성공, 전체415 tests / 0 failures/errors/skipped.
 신규 삭제 통합 검증15개 + 실제 예산 공급자 없는503/무삭제 HTTP 검증1개 포함.
+
+## Issue #120 — API #17 대출 삭제
+
+#119 병합(9916f37)을 개인 develop/Fork에 반영했다. DELETE /api/loans/{loan_id}/는 본인 소유권과
+실제 납부 유무를 검사하여 납부가 있으면 명세대로409 LOAN_HAS_PAYMENTS, 그 외DELETED로 보존한다.
+원금/금리·잔액 이력·적립·회차·기본 계획을 보존하며 활성 목록/한도에서 제외한다. 선택 키와
+사용자/대출 잠금, 현재월 예산 재계산·revision·응답을 원자 처리한다. 실제 예산 공급자 없으면503/무변경이다.
+DB/공통 계약 변경 없음. [삭제 규칙 및 실제 연동 한계](LOAN_DELETE.md) 참조.
+
+검증: JDK21 `./gradlew clean build` 성공, 전체433 tests / 0 failures/errors/skipped.
+신규 대출 삭제 통합17개 + 실제 예산 공급자 없는503/상태 보존 HTTP1개 포함.
