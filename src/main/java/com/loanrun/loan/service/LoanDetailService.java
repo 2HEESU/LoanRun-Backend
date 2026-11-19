@@ -35,8 +35,10 @@ public class LoanDetailService {
                 if(!row.evaluatedOn().equals(loan.asOf()))throw ApiException.unavailable();
                 if(row.state().outstandingAmount()==0)continue;var due=row.source().due();var state=row.state();
                 boolean sameMonth=YearMonth.from(due.dueDate()).equals(YearMonth.from(loan.asOf()));
-                Long target=sameMonth&&plan.path("planned_extra_amount").isNumber()?plan.path("planned_extra_amount").longValue():loan.repaymentMethod()==RepaymentMethod.BULLET?0L:null;
-                Long saving=loan.repaymentMethod()!=RepaymentMethod.BULLET?0L:sameMonth&&plan.path("planned_saving_amount").isNumber()?plan.path("planned_saving_amount").longValue():null;
+                Long target=loan.repaymentMethod()==RepaymentMethod.BULLET?0L:null;
+                if(sameMonth&&plan.path("planned_extra_amount").isNumber())target=plan.path("planned_extra_amount").longValue();
+                Long saving=loan.repaymentMethod()!=RepaymentMethod.BULLET?0L:null;
+                if(loan.repaymentMethod()==RepaymentMethod.BULLET&&sameMonth&&plan.path("planned_saving_amount").isNumber())saving=plan.path("planned_saving_amount").longValue();
                 long paidExtra=0,actualSaving=0;
                 for(var p:snapshot.payments())if(YearMonth.from(p.paidAt()).equals(YearMonth.from(due.dueDate())))paidExtra=Math.addExact(paidExtra,p.extraPrincipal());
                 for(var s:snapshot.savings())if(YearMonth.from(s.savedAt()).equals(YearMonth.from(due.dueDate())))actualSaving=Math.addExact(actualSaving,s.amount());
