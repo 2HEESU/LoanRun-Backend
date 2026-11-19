@@ -29,7 +29,7 @@ public class PaymentLedgerCoordinator {
     public void requireBudget(){if(budgets.getIfAvailable()==null)throw ApiException.unavailable();}
     public void apply(long user,LoanSources.Snapshot old,PaymentReplay.Result replay,LocalDate changedDate) {
         var l=old.loans().getFirst();long id=l.loanId();var today=today();var sorted=old.dues().stream().sorted(Comparator.comparing(LoanSources.Due::dueDate).thenComparingLong(LoanSources.Due::id)).toList();
-        if(replay.balance()==0&&sorted.stream().anyMatch(d->!d.dueDate().isAfter(today)&&replay.paid(d.id())<d.requiredAmount()))throw new PaymentReplay.Conflict();
+        if(replay.balance()==0&&sorted.stream().anyMatch(d->replay.paid(d.id())<d.requiredAmount()&&(!d.dueDate().isAfter(today)||replay.allocations().stream().anyMatch(a->a.due()==d.id()))))throw new PaymentReplay.Conflict();
         if(replay.balance()>0&&l.storedStatus()==LoanStatus.PAID&&registrations.activeCount(user)>=7)throw new PaymentReplay.Conflict();
         writes.allocations(user,id,replay);LocalDate cursor=l.storedNextDueDate();
         var next=sorted.stream().filter(d->replay.paid(d.id())<d.requiredAmount()||d.requiredAmount()==0&&!d.dueDate().isBefore(today)).findFirst();
@@ -65,6 +65,13 @@ public class PaymentLedgerCoordinator {
         Long due=targetDue;if(due==null||source.dues().stream().noneMatch(d->d.id()==targetDue))due=source.dues().stream().filter(d->d.dueDate().equals(source.loans().getFirst().storedNextDueDate())).map(LoanSources.Due::id).findFirst().orElse(null);
         if(includePlan){result.set("updated_schedule",due==null?mapper.nullNode():schedule.item(user,due));var plan=plans.list(user,PlanType.FREE,Long.toString(loan),null).path("plans");if(plan.size()!=1)throw ApiException.unavailable();result.set("updated_plan",plan.get(0));}
         else {result.put("schedule_status",due==null?"PAID":schedule.item(user,due).path("status").asText());result.put("report_stale",true);}return result;
+    }
+    public ObjectNode deletionResponse(long user,long loan,long payment,Long preferred) {
+        var source=loans.loanSnapshot(user,loan,today());var l=source.loans().getFirst();var due=preferred==null?Optional.<LoanSources.Due>empty():source.dues().stream().filter(d->d.id()==preferred).findFirst();
+        if(due.isEmpty())due=source.dues().stream().filter(d->d.dueDate().equals(l.storedNextDueDate())).findFirst();
+        if(due.isEmpty())due=source.dues().stream().max(Comparator.comparing(LoanSources.Due::dueDate).thenComparingLong(LoanSources.Due::id));
+        String status;if(due.isPresent())status=schedule.item(user,due.get().id()).path("status").asText();else if(l.storedStatus()==LoanStatus.PAID)status="PAID";else throw ApiException.unavailable();
+        var data=mapper.createObjectNode();data.put("payment_id",payment);data.put("deleted",true);data.put("remaining_principal",l.storedRemainingPrincipal());data.put("schedule_status",status);data.put("report_stale",true);return data;
     }
     public LocalDate today(){return LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul")));}
 }

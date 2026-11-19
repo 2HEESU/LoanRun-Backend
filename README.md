@@ -228,3 +228,5 @@ Current plan views: `GET /api/repayment-plans/` requires real version/budget sou
 - API #25 납부 등록: [실제 구성·회차 충당·원장 재처리·적립 사용·원자적 재정산](docs/PAYMENT_CREATE_API.md).
 
 - API #29 납부 수정: [자동 재분리·스냅샷 잠금·원장 재처리·완납 취소/원약정 복원](docs/PAYMENT_UPDATE_API.md).
+
+- API #30 납부 삭제: [원장 재처리·적립 반환·원약정 복원·멱등/충돌/롤백](docs/PAYMENT_DELETE_API.md).
