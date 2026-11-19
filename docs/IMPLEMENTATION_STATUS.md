@@ -343,3 +343,7 @@ false/null이며 정상 빈 관측과 조회 실패를 구분한다. 공통 계�
 - POST `/api/repayment-plans/preview/`: 직접/성향/목표 역산·PRO 후보 분기, 동일 현재 원천 비교, 수수료 포함 현금 배분, 불변 preview/data revision, 저장 없음.
 - Team 1 HTTP 구현 18/24, 전체 26/50. 이번 요청 당시 남은 Team 1 HTTP API 12개 중 6개 범위. 미리보기 #22 머지 후 이번 자동 진행 범위 종료. 실제 예산/계획/관측/과거 원천 연결 및 DB 적용 검증은 별도 미완료.
 - 남은 Team 1 HTTP API: #21 계획 저장, #23 전체 계획, #25 납부 등록, #26 납부 일정, #29 납부 수정, #30 납부 삭제. [미리보기 상세](PLAN_PREVIEW_API.md).
+
+### 나머지 자동 진행 1/6: 계획 저장 (#21)
+- PUT `/api/repayment-plans/`: 미리보기 재검증, 새 불변 버전/전체 상태 이벤트, 멱등 응답과 예산/revision 원자적 갱신. 저장 원천 내부 조회 구현(공통 런타임 어댑터는 DB baseline 이후 연결).
+- Team 1 경로 구현 19/24, 전체 27/50. SQL 제안/실제 예산 및 DB 적용 대기 유지. [상세](PLAN_SAVE_API.md).
