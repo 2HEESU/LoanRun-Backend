@@ -347,3 +347,7 @@ false/null이며 정상 빈 관측과 조회 실패를 구분한다. 공통 계�
 ### 나머지 자동 진행 1/6: 계획 저장 (#21)
 - PUT `/api/repayment-plans/`: 미리보기 재검증, 새 불변 버전/전체 상태 이벤트, 멱등 응답과 예산/revision 원자적 갱신. 저장 원천 내부 조회 구현(공통 런타임 어댑터는 DB baseline 이후 연결).
 - Team 1 경로 구현 19/24, 전체 27/50. SQL 제안/실제 예산 및 DB 적용 대기 유지. [상세](PLAN_SAVE_API.md).
+
+### 나머지 자동 진행 2/6: PRO 전체 계획 (#23)
+- GET `/api/plans/overall/`: PRO 게이트, SINGLE_LOAN/EMPTY/AVAILABLE, 실제 적용 상태/우선순위·revision 기반 재검토, 읽기 전용.
+- Team 1 경로 구현 20/24, 전체 28/50. 실제 예산/DB 원천 대기 유지. [상세](OVERALL_PLAN_API.md).

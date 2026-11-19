@@ -178,7 +178,7 @@ public class PlanPreviewService {
     private void allocation(ArrayNode a,Goal g,JsonNode raw,Long actualCash) {var n=a.addObject();n.put("loan_id",g.terms().loanId());n.put("amount",g.amount());put(n,"priority",g.priority());boolean bullet=g.terms().method()==RepaymentMethod.BULLET;n.put("allocation_type",bullet?"REPAYMENT_SAVING":"EXTRA_PAYMENT");
         if(bullet)n.set("actual_amount",raw.path("actual_saving_amount"));else put(n,"actual_amount",actualCash);
     }
-    private Long actualExtraCash(long user,long id,LocalDate today) {
+    Long actualExtraCash(long user,long id,LocalDate today) {
         long cash=0;for(var p:loans.loanSnapshot(user,id,today).payments()) {
             if(!YearMonth.from(p.paidAt()).equals(YearMonth.from(today))||p.extraPrincipal()==0)continue;
             if(p.kind()==com.loanrun.loan.read.LoanSources.PaymentKind.EXTRA&&p.regularPrincipal()==0)cash=Math.addExact(cash,p.amount()-p.savingsUsed());
