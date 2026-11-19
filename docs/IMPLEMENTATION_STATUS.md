@@ -269,3 +269,12 @@ V4없음은 빈이력이 아니라503이며 명시적V2-only조회와 구분한�
 공통 계약/DB/HTTP 변경 없음. [계산과 실제 통합 한계](PLAN_PAYOFF_PROJECTION.md) 참조.
 
 검증: JDK21 `./gradlew clean build` 성공, 전체497 tests / 0 failures/errors/skipped(신규23).
+
+## Issue #130 — 계획 진행률 및 목표 달성 상태
+
+#129 병합(c530715)을 개인 develop/Fork에 반영했다. 순수 계산기는 계획 시작 잔액 대비 원금 진행률,
+월 전체/도래 누적 목표와 실적 gap·비율을 구분한다. track은 정확한 원 단위이며 정기 미기록·
+실적 부족을 보존한다. BULLET 적립/원금은 분리한다. 공통 계약/DB/HTTP 변경 없음.
+[입력 근거·계산 규칙·실제 통합 한계](PLAN_PERFORMANCE.md) 참조.
+
+검증: JDK21 `./gradlew clean build` 성공, 전체521 tests / 0 failures/errors/skipped(신규24).
