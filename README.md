@@ -214,3 +214,5 @@ Current plan views: `GET /api/repayment-plans/` requires real version/budget sou
 - API #19 금리 변경 등록: [동작 및 충돌/통합 조건](docs/LOAN_RATE_UPDATE_API.md). 과거 원본 보존, 미래 미확정 회차/현재 계획 재계산, 실패 전체 롤백.
 
 - API #16 대출 정보 수정: [수정/보정 및 보존·충돌 조건](docs/LOAN_UPDATE_API.md). 금리는 별도 이력 API 사용, 동일 값 무변경, 실제 보정 새 스냅샷/원자적 재계산.
+
+- API #27 월별 상환 통계: [관측·현금/적립·과거 목표/잔액 조건](docs/PAYMENT_MONTHLY_SUMMARY_API.md). 미기록 월은 실제 0원으로 처리하지 않음.
