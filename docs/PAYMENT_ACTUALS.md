@@ -47,6 +47,7 @@ validation must enforce method, due-component and outstanding-principal consiste
 stored combinations must not be resolved by silently inventing a funding priority in a future adapter.
 
 No savings priority policy is introduced for an unreachable normal-flow combination.
-Monthly observed status is a separate unresolved projection criterion. This component does not need either assumption
+Monthly observed status now requires explicit recording completion or actual-zero evidence (see PAYMENT_OBSERVATION.md).
+This raw component does not infer either condition
 for exact stored totals or cashPaid. No public API, common interface, migration, environment/dependency,
 Team 2 code, actual DB or deployment changes are included.
