@@ -77,7 +77,7 @@ class PlanSaveIntegrationTest {
         ((com.fasterxml.jackson.databind.node.ObjectNode)p.path("plans").get(0)).put("extra_monthly_payment",500000);assertThat(request(b,"PUT","/api/repayment-plans/",p,"save-one").statusCode()).isEqualTo(409);
     }
     @Test void staleAndMissingKeyCannotWrite()throws Exception {
-        var b=browser();long user=owner(b),id=loan(user,false,true);var p=prepared(b,id);assertThat(request(b,"PUT","/api/repayment-plans/",p,null).statusCode()).isEqualTo(400);
+        var b=browser();long user=owner(b),id=loan(user,false,true);var p=prepared(b,id);assertThat(request(b,"PUT","/api/repayment-plans/",p,null).statusCode()).isEqualTo(400);assertThat(json(request(b,"PUT","/api/repayment-plans/",input(id),"missing-preview")).path("code").asText()).isEqualTo("PLAN_VALIDATION_ERROR");
         jdbc.update("UPDATE demo_users SET revision=revision+1 WHERE id=?",user);var r=request(b,"PUT","/api/repayment-plans/",p,"stale");assertThat(r.statusCode()).isEqualTo(409);assertThat(json(r).path("code").asText()).isEqualTo("PLAN_PREVIEW_STALE");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM repayment_plan_versions WHERE loan_id=?",Integer.class,id)).isZero();
     }
@@ -100,7 +100,10 @@ class PlanSaveIntegrationTest {
         when(candidates.requireCurrentCandidate(user,1,"v1","INTEREST_SAVING",revision)).thenReturn(new StrategyCandidate(1,"v1","INTEREST_SAVING","MULTI",revision,clock.instant(),allocations,simulation,true,List.of()));
         var preview=request(b,"POST","/api/repayment-plans/preview/",body,null);assertThat(preview.statusCode()).as(preview.body()).isEqualTo(200);((com.fasterxml.jackson.databind.node.ObjectNode)body).put("preview_version",json(preview).path("data").path("preview_version").asText());
         var saved=request(b,"PUT","/api/repayment-plans/",body,"strategy");assertThat(saved.statusCode()).as(saved.body()).isEqualTo(200);assertThat(queries.overallState(user).exists()).isTrue();assertThat(queries.plannedAllocations(user,YearMonth.of(2026,3)).getFirst().priority()).isEqualTo(1);
-        assertThat(request(b,"PUT","/api/repayment-plans/",prepared(b,a),"direct").statusCode()).isEqualTo(200);assertThat(queries.overallState(user).strategyCode()).isEqualTo("MANUAL");assertThat(queries.overallState(user).exists()).isTrue();
+        var direct=prepared(b,a);assertThat(request(b,"PUT","/api/repayment-plans/",direct,"direct").statusCode()).isEqualTo(200);assertThat(queries.overallState(user).strategyCode()).isEqualTo("MANUAL");assertThat(queries.overallState(user).exists()).isTrue();
+        jdbc.update("UPDATE demo_users SET plan_type='FREE' WHERE id=?",user);long currentRevision=revisions.current(user);
+        var denied=request(b,"PUT","/api/repayment-plans/",body,"strategy");assertThat(denied.statusCode()).as(denied.body()).isEqualTo(403);assertThat(json(denied).path("code").asText()).isEqualTo("PRO_REQUIRED");
+        var replay=request(b,"PUT","/api/repayment-plans/",direct,"direct");assertThat(replay.statusCode()).as(replay.body()).isEqualTo(200);var data=json(replay).path("data");assertThat(data.path("strategy_code").isNull()).isTrue();assertThat(data.path("overall_plan_exists").asBoolean()).isFalse();for(var row:data.path("plans"))assertThat(row.path("priority").isNull()).isTrue();for(var row:data.path("allocations"))assertThat(row.path("priority").isNull()).isTrue();assertThat(revisions.current(user)).isEqualTo(currentRevision);
     }
 
 }
