@@ -71,3 +71,14 @@ The pinned V1/V2/V3/V5 SQL combination passed five isolated PostgreSQL/Flyway11.
 ## Follow-up: source reads (Issue #82)
 
 LoanSourceRepository/LoanSources add real owner/date-scoped V2 reads and immutable typed facts. PostgreSQL tests cover ownership, dates, original values and no financial writes. After #80 merged at c275347, the source-read feature was integrated with central develop and retested for a separate PR. It is not a completed LoanQueryPort; financial projection/aggregation and public loan query APIs remain pending.
+
+## Follow-up: rate history (Issue #87)
+
+After source-read PR #86 merged at 825c582, API #18 GET /api/loans/{loan_id}/rate-history/ adds a public,
+owner-scoped read of stored manual rate history. The registration rate is included; previous_rate is null
+for the first row and otherwise derived by effective_date/id order, preserving zero and duplicate values.
+DELETED/foreign/missing loans return 404; PAID history remains visible. No runtime port, schema, mutation
+or Team 2 code is changed. Team 1 has three HTTP operations implemented (#13, #14, #18), with #13 still
+requiring the real budget recalculation provider. The other 21 Team 1 operations, LoanQueryPort financial
+projections, PlanQueryPort, frontend integration and deployment remain pending. Validation counts are
+recorded in the feature PR.

@@ -30,6 +30,26 @@ public class LoanSourceRepository {
         if(rows.isEmpty())throw missing();return rows.getFirst();
     }
 
+    /** Public rate history: one statement checks visibility and reads the complete original sequence. */
+    public List<Rate> rateHistory(long userId,long loanId) {
+        owner(userId);
+        if(loanId<=0)throw missing();
+        return jdbc.query("""
+            SELECT h.* FROM loans l
+            LEFT JOIN loan_rate_histories h ON h.loan_id=l.id AND h.user_id=l.user_id
+            WHERE l.user_id=:user AND l.id=:loan AND l.status<>'DELETED'
+            ORDER BY h.effective_date,h.id
+            """,Map.of("user",userId,"loan",loanId),rs->{
+                if(!rs.next())throw missing();
+                var rates=new ArrayList<Rate>();
+                do {
+                    if(rs.getObject("id")!=null)rates.add(new Rate(rs.getLong("id"),rs.getLong("user_id"),rs.getLong("loan_id"),
+                        rs.getBigDecimal("annual_rate"),date(rs,"effective_date"),instant(rs,"created_at")));
+                } while(rs.next());
+                return List.copyOf(rates);
+            });
+    }
+
     /** Business-date cutoff applies to actuals and effective histories, not future contractual due dates.
      * Stored latest loan columns remain latest facts and are not asserted to describe a past balance/status.
      */
