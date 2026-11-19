@@ -4,7 +4,7 @@ import com.loanrun.common.contract.FinanceModels.*;
 import com.loanrun.common.contract.RepaymentEngine;
 import com.loanrun.common.error.ApiException;
 import com.loanrun.finance.engine.RepaymentDates;
-import com.loanrun.finance.engine.RepaymentMath;
+import com.loanrun.loan.domain.LoanSavingsCalculator;
 import com.loanrun.loan.dto.*;
 import com.loanrun.loan.read.LoanSourceRepository;
 import com.loanrun.loan.read.LoanSources.*;
@@ -45,19 +45,9 @@ public class LoanListService {
     }
 
     private View view(Loan l,Snapshot s,LocalDate today) {
-        long savings=l.initialSavings();
-        for(var saving:s.savings())if(saving.loanId()==l.loanId())savings=Math.addExact(savings,saving.amount());
-        for(var payment:s.payments())if(payment.loanId()==l.loanId())savings=Math.subtractExact(savings,payment.savingsUsed());
-        if(savings<0 || l.method()!=RepaymentMethod.BULLET&&savings!=0)throw ApiException.unavailable();
+        long savings=LoanSavingsCalculator.balance(l,s);
         var next=next(l,s,today,savings);
-        long requiredSaving=0;
-        if(l.storedStatus()==LoanStatus.ACTIVE&&l.method()==RepaymentMethod.BULLET) {
-            var target=l.initialPlan().targetPayoffDate();
-            if(target==null||target.isAfter(l.maturityDate()))throw ApiException.unavailable();
-            long periods=RepaymentDates.remaining(terms(l,next.date(),null,savings),today).stream()
-                .filter(d->!d.isAfter(target)).count();
-            requiredSaving=RepaymentMath.requiredSaving(l.storedRemainingPrincipal(),savings,Math.toIntExact(periods));
-        }
+        long requiredSaving=LoanSavingsCalculator.required(l,savings,today,l.initialPlan().targetPayoffDate());
         long paid=Math.subtractExact(l.originalPrincipal(),l.storedRemainingPrincipal());
         var progress=BigDecimal.valueOf(paid).multiply(BigDecimal.valueOf(100))
             .divide(BigDecimal.valueOf(l.originalPrincipal()),2,RoundingMode.HALF_UP);

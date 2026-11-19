@@ -57,6 +57,12 @@ public class LoanSourceRepository {
         return snapshot(userId,actualsThrough,List.of("ACTIVE","PAID","DELETED"));
     }
 
+    /** Includes preserved PAID/DELETED history, but never parses another loan's sources. */
+    public Snapshot loanSnapshot(long userId,long loanId,LocalDate today) {
+        if(loanId<=0)throw new IllegalArgumentException("Positive loan required");
+        return snapshot(userId,today,List.of("ACTIVE","PAID","DELETED"),loanId);
+    }
+
     /** Public current views exclude invisible loans before parsing their dependent source data. */
     public Snapshot visibleSnapshot(long userId,LocalDate today,String status) {
         if(!Set.of("ACTIVE","PAID","ALL").contains(status))throw ApiException.validation("status","입력값이 올바르지 않습니다.");
@@ -64,12 +70,17 @@ public class LoanSourceRepository {
     }
 
     private Snapshot snapshot(long userId,LocalDate actualsThrough,List<String> statuses) {
+        return snapshot(userId,actualsThrough,statuses,null);
+    }
+
+    private Snapshot snapshot(long userId,LocalDate actualsThrough,List<String> statuses,Long loanId) {
         owner(userId);Objects.requireNonNull(actualsThrough);
-        var p=Map.<String,Object>of("user",userId,"through",actualsThrough,"statuses",statuses);
+        var p=new HashMap<String,Object>();p.put("user",userId);p.put("through",actualsThrough);p.put("statuses",statuses);
+        if(loanId!=null)p.put("loan",loanId);
         var loans=jdbc.query("""
             SELECT * FROM loans WHERE user_id=:user AND status IN (:statuses)
-            AND (created_at AT TIME ZONE 'Asia/Seoul')::date<=:through ORDER BY id
-            """,p,this::loanRow);
+            AND (created_at AT TIME ZONE 'Asia/Seoul')::date<=:through
+            """+(loanId==null?"":" AND id=:loan")+" ORDER BY id",p,this::loanRow);
         if(loans.isEmpty())return new Snapshot(actualsThrough,List.of(),List.of(),List.of(),List.of(),List.of(),List.of(),List.of());
         var ids=loans.stream().map(Loan::loanId).toList();
         var scope=Map.<String,Object>of("user",userId,"through",actualsThrough,"loans",ids);

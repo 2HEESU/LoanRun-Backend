@@ -170,3 +170,17 @@ DB/공통 계약 변경은 없다. V3 이전에 V4를 적용하지 않는다.
 
 검증: JDK 21 `./gradlew clean build` 성공, 전체 304 tests / 0 failures / 0 errors / 0 skipped.
 새 목록 HTTP/PostgreSQL 통합 검증 19개 포함. 배포/프론트 전체 흐름 검증은 이 결과에 포함하지 않는다.
+
+## Issue #110 — API #32 상환자금 적립 내역
+
+#109 병합(ad37a65) 후 개인 Fork/develop을 최신화했다. API #15는 현재 계획 객체·진행률·
+예상 완납 계산 구현이 선행되어야 하므로 임의 응답을 만들지 않고, 독립 구현 가능한 #32를 진행한다.
+GET /api/repayment-savings/는 본인 BULLET의 날짜 필터 기록, 전체 자산, 당월 기록 합계 및 목표를 읽는다.
+대출 목록과 자산/필요 적립액 계산을 공유하며 정기 이자 선납이 적립 회차를 줄이는 문제를 보완한다.
+PlanQueryPort/당월 배분이 제공될 때는 실제 제공값을 우선하며, 현재는 V2의 실제 기본 계획을 사용한다.
+DB·공통 계약 변경은 없다. [상세 동작과 한계](SAVING_LIST.md)를 참조한다.
+
+최초 검증: JDK 21 clean build 336 tests / 0 failures/errors/skipped(신규 적립 조회 32개).
+추가 중앙 병합 #29/#50/#84/#101 반영 후 전체 검증 결과는 아래 후속 기록을 따른다.
+
+최신 중앙 2cfd190 병합 후 JDK 21 `./gradlew clean build` 성공: 342 tests / 0 failures/errors/skipped.
