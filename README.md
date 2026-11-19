@@ -206,3 +206,5 @@ See [current-source projection and remaining API/DB integration](docs/CURRENT_PL
 Current plan performance queries now combine recorded version-period totals with independent monthly evidence
 and original schedules. Unconfirmed cumulative periods and unproved start-balance reductions remain unknown.
 See [performance query periods, proof requirements and runtime limits](docs/PLAN_PERFORMANCE_QUERY.md).
+
+Current plan views: `GET /api/repayment-plans/` requires real version/budget sources for nonempty data. See [plan read behavior and limits](docs/PLAN_READ_API.md).

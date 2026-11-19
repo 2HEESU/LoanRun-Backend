@@ -316,3 +316,9 @@ false/null이며 정상 빈 관측과 조회 실패를 구분한다. 공통 계�
 
 검증: JDK21 `./gradlew clean build` 성공, 전체598 tests / 0 failures/errors/skipped(신규15).
 초기 검증에서 효력일 이전으로 잡힌 테스트 납부일1건은 자료 수정 후 통과했다.
+
+## Issue #140 — API #20 계획 조회 (자동 진행 1/6)
+
+#139 병합(bae26e4) 반영. 기존 원천/예상 완납/성과를 실제 GET에 연결했다. 소유권·현재 기준일·nullable 성과·집계·FREE/PRO·월 override를 검증한다. [연동 대기](PLAN_READ_API.md). HTTP13/24, 전체21/50은 경로 구현이며 실제 V4/예산·과거 조회/전체 성과 완료율이 아니다.
+
+검증: JDK21 clean build 성공, 전체618 tests / 0 failures/errors/skipped(신규20).
