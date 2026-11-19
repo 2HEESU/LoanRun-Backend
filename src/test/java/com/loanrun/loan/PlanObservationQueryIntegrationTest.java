@@ -55,6 +55,7 @@ class PlanObservationQueryIntegrationTest {
     @Autowired SavingObservationSnapshotRepository savingSnapshots;
     @Autowired PaymentObservationSnapshotRepository paymentSnapshots;
     @Autowired PlanSourceQueryService plans;
+    @Autowired PlanPayoffQueryService payoffQueries;
     @BeforeEach void reset(){clock.value=Instant.parse("2026-03-01T00:00:00Z");}
     void now(String instant){clock.value=Instant.parse(instant);}
     long owner(){return jdbc.queryForObject("INSERT INTO demo_users(session_digest,created_at,updated_at) VALUES (?,?,?) RETURNING id",Long.class,
@@ -183,5 +184,10 @@ class PlanObservationQueryIntegrationTest {
         assertThat(result.knownAt()).isEqualTo(captured);assertThat(result.asOf()).isEqualTo(LocalDate.of(2026,10,31));
         assertThat(result.observations()).extracting(o->o.month().getMonthValue()).containsExactly(4,5,6,7,8,9);
         assertThat(result.observations()).allSatisfy(o->{assertThat(o.observed()).isFalse();assertThat(o.amount()).isNull();});
+    }
+    @Test void actualMissingVersionTableIsAnErrorInsteadOfAClaimThatOnlyV2Exists()throws Exception {
+        long user=owner(),id=loan(user,false);
+        assertThat(jdbc.queryForObject("SELECT to_regclass('repayment_plan_versions')",String.class)).isNull();
+        assertThatThrownBy(()->payoffQueries.current(user,id)).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.code()).isEqualTo("SERVICE_UNAVAILABLE"));
     }
 }

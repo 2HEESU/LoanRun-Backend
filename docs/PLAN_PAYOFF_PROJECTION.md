@@ -41,3 +41,7 @@ BULLET_SAVINGS_SHORTFALL/insufficient=true/projectedPayoffDate=null을 그대로
 테스트는 실제 순수 엔진으로 알려진 원금/이자/수수료/현금·완납일, 관측0/fallback/입력 부족,
 고정/선형/만료/미확인 수수료, 마지막 잔액 한도, 상환 정책·거치, BULLET 자금·원금 분리,
 현재 회차 경과/horizon/반복 결정성, 잘못된 엔진 입력을 검증한다.
+
+#136의 [현재 원천 조회 조합](CURRENT_PLAN_PROJECTION.md)이 실제 현재 약정/저장 계획/관측 입력을
+연결한다. 추가된 projectWithUpcomingPlan은 계획 효력일 이전의 계산 회차가 없을 때만 미래 계획을
+예측에 사용하며 기존 project의 미래 계획 거절 규칙은 유지한다. 부분·동결 회차/실제V4/HTTP 연결은 후속이다.

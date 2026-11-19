@@ -166,4 +166,17 @@ class PlanPayoffProjectionTest {
             Instant.parse("2026-01-01T00:00:00Z"));
         assertThatThrownBy(() -> project(loan(), future)).isInstanceOf(IllegalArgumentException.class);
     }
+    @Test void upcomingPlanCanBeForecastWhenItsEffectivityPrecedesEveryModeledDue() {
+        var upcoming = new SavedPlanSource(7,1,2,SavedPlanSource.Origin.PLAN_VERSION,true,"EXTRA_AMOUNT",null,
+            LocalDate.of(2026,1,25),null,LocalDate.of(2026,12,25),200,0,1200L,null,null,null,Instant.parse("2026-01-01T00:00:00Z"));
+        var result=calculator.projectWithUpcomingPlan(loan().terms(),REGISTERED,AS_OF,12,upcoming,List.of());
+        assertThat(result.simulation().projectedPayoffDate()).isEqualTo(LocalDate.of(2026,5,25));
+        assertThat(upcoming.effectiveDate()).isEqualTo(LocalDate.of(2026,1,25));
+    }
+    @Test void upcomingPlanCannotSilentlyReplaceAnEarlierModeledCycle() {
+        var upcoming = new SavedPlanSource(7,1,2,SavedPlanSource.Origin.PLAN_VERSION,true,"EXTRA_AMOUNT",null,
+            LocalDate.of(2026,2,25),null,LocalDate.of(2026,12,25),200,0,1200L,null,null,null,Instant.parse("2026-01-01T00:00:00Z"));
+        assertThatThrownBy(()->calculator.projectWithUpcomingPlan(loan().terms(),REGISTERED,AS_OF,12,upcoming,List.of()))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
 }
