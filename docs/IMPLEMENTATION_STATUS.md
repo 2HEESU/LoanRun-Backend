@@ -231,3 +231,14 @@ DB/공통 계약 변경 없음. [삭제 규칙 및 실제 연동 한계](LOAN_DE
 
 검증: JDK21 `./gradlew clean build` 성공, 전체433 tests / 0 failures/errors/skipped.
 신규 대출 삭제 통합17개 + 실제 예산 공급자 없는503/상태 보존 HTTP1개 포함.
+
+## Issue #122 — 개별 계획 버전 저장 기반
+
+#121 병합(5befcba) 이후 계획 객체·진행률·금리 변경이 공통으로 필요로 하는 저장 원천을 준비한다.
+V2 기본version1을 유지하며 이후 목표/입력금액·효력일·입력revision·시작 약정/원금·전략 출처를
+불변version2+로 보존한다. 기대버전/입력revision과 소유권·사용자/대출잠금, 여러대출 원자성을 검증한다.
+미번호SQL proposal만 추가하며 V3보다 V4를 먼저 적용하지 않는다. 실제 소비 API/부분 query Bean 없음.
+새 HTTP API 개수는 추가하지 않는다. [저장 기반과 통합 한계](PLAN_VERSION_STORAGE.md) 참조.
+
+검증: JDK21 `./gradlew clean build` 성공, 전체450 tests / 0 failures/errors/skipped(신규 저장소17).
+최초 검증은 Spring의 인자 예외 변환을 테스트가 고려하지 못해1건 실패했고, 실제 구조에 맞춰 수정 후 통과했다.

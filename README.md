@@ -170,3 +170,7 @@ Without the real budget provider it returns 503 and retains the original. See [s
 Loan deletion: `DELETE /api/loans/{loan_id}/` archives the owner's loan as DELETED and preserves sources.
 Any actual payment blocks deletion with 409 LOAN_HAS_PAYMENTS. The key is optional; actual budget
 recalculation is required. See [loan deletion, preserved history and integration](docs/LOAN_DELETE.md).
+
+Individual plan version storage is prepared as an unnumbered SQL proposal and isolated repository tests.
+It preserves V2 registration version1 and appends later source versions; no runtime consumer or partial
+query port is installed. See [source version semantics and activation dependencies](docs/PLAN_VERSION_STORAGE.md).
