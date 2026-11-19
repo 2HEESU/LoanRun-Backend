@@ -32,4 +32,11 @@ public class PaymentWriteRepository {
         }catch(java.io.IOException e){throw ApiException.unavailable();}
     }
 
+    public long loanId(long user,long payment) {
+        var rows=jdbc.queryForList("SELECT loan_id FROM payments WHERE user_id=:user AND id=:id",Map.of("user",user,"id",payment),Long.class);if(rows.isEmpty())throw new com.loanrun.common.error.ApiException(org.springframework.http.HttpStatus.NOT_FOUND,"PAYMENT_NOT_FOUND","납부 기록을 찾을 수 없습니다.");return rows.getFirst();
+    }
+    public void update(long user,long loan,Entry e) {
+        var p=e.request();jdbc.update("UPDATE payments SET paid_at=:date,payment_type=:type,amount=:amount,principal_amount=:principal,extra_amount=:extra,interest_amount=:interest,fee_amount=:fee,savings_used_amount=:used WHERE user_id=:user AND loan_id=:loan AND id=:id",new MapSqlParameterSource().addValue("user",user).addValue("loan",loan).addValue("id",p.id()).addValue("date",p.date()).addValue("type",p.kind().name()).addValue("amount",p.amount()).addValue("principal",e.principal()).addValue("extra",e.extra()).addValue("interest",e.interest()).addValue("fee",e.fee()).addValue("used",p.used()));
+    }
+
 }

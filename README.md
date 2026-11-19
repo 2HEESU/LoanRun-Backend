@@ -226,3 +226,5 @@ Current plan views: `GET /api/repayment-plans/` requires real version/budget sou
 - API #26 납부 일정: [저장 회차·실적 귀속·목표 원천 및 미생성 미래 회차](docs/PAYMENT_SCHEDULE_API.md).
 
 - API #25 납부 등록: [실제 구성·회차 충당·원장 재처리·적립 사용·원자적 재정산](docs/PAYMENT_CREATE_API.md).
+
+- API #29 납부 수정: [자동 재분리·스냅샷 잠금·원장 재처리·완납 취소/원약정 복원](docs/PAYMENT_UPDATE_API.md).
