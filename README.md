@@ -115,6 +115,11 @@ See [risk input and projection contracts](docs/RISK_INPUTS.md) for cash, target 
 Team 1 implements the repayment engine and loans/payments/savings/plans. Team 2 owns common infrastructure
 and user/budget/catalog/dashboard/risk/report/settings. Runtime mock implementations are prohibited.
 
+Actual-payment queries in `payment` group stored paid_at months/loans and separate original payment
+components, savings use and cash outflow (`amount - savings_used_amount`). API #24 reuses their totals.
+See [actual aggregate scope and supported funding combinations](docs/PAYMENT_ACTUALS.md). No observed-month
+or savings-funding priority is inferred from missing records.
+
 Stored-due queries in `payment` aggregate actual regular allocation components and evaluate the five
 regular-due states using the KST business date. They also drive confirmation eligibility. See
 [stored due state boundaries and coverage](docs/STORED_DUE_STATES.md). They do not generate schedules,

@@ -2,6 +2,7 @@ package com.loanrun.payment;
 
 import static org.assertj.core.api.Assertions.*;
 import com.fasterxml.jackson.databind.*;
+import com.loanrun.common.contract.FinanceModels.DateRange;
 import com.loanrun.payment.repository.PaymentReadRepository;
 import java.net.*;
 import java.net.http.*;
@@ -33,6 +34,7 @@ class PaymentDetailIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired PaymentReadRepository payments;
     @Autowired com.loanrun.payment.service.StoredDueQueryService storedDues;
+    @Autowired com.loanrun.payment.service.PaymentActualsQueryService actualPayments;
     @LocalServerPort int port;
     // Synthetic V2 source fixtures only. No runtime provider or test budget/query-port replacement.
     HttpClient browser(){return HttpClient.newBuilder().cookieHandler(new CookieManager(null,CookiePolicy.ACCEPT_ALL)).build();}
@@ -87,6 +89,105 @@ class PaymentDetailIntegrationTest {
     }
     List<Long> ids(JsonNode data) {
         var ids=new ArrayList<Long>();data.path("results").forEach(row->ids.add(row.path("payment_id").longValue()));return ids;
+    }
+    DateRange period(String from,String to){return new DateRange(LocalDate.parse(from),LocalDate.parse(to));}
+
+    @Test void actualTotalsSeparatePaymentKindsExtraPrincipalFeesSavingsAndCash()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner);
+        jdbc.update("UPDATE loans SET original_principal=350000,remaining_principal=0,snapshot_principal=350000,initial_savings_balance=130000,status='PAID',maturity_date='2026-03-25' WHERE id=?",loan);
+        // BULLET: early principal is EXTRA; remaining maturity principal is REGULAR, never both in one payment.
+        payment(owner,loan,"2026-03-05","EXTRA",0,100000,0,2000,80000);
+        payment(owner,loan,"2026-03-06","EXTRA",0,200000,0,1000,50000);
+        payment(owner,loan,"2026-03-25","REGULAR",50000,0,3000,0,0);
+        var totals=actualPayments.aggregate(owner,period("2026-03-01","2026-03-31"),null);
+        assertThat(totals.paymentCount()).isEqualTo(3);assertThat(totals.regularCount()).isEqualTo(1);assertThat(totals.extraPaymentCount()).isEqualTo(2);
+        assertThat(totals.extraPrincipalCount()).isEqualTo(2);assertThat(totals.regularPrincipal()).isEqualTo(50000);assertThat(totals.extraPrincipal()).isEqualTo(300000);
+        assertThat(totals.interest()).isEqualTo(3000);assertThat(totals.fee()).isEqualTo(3000);assertThat(totals.amount()).isEqualTo(356000);
+        assertThat(totals.savingsUsed()).isEqualTo(130000);assertThat(totals.cashPaid()).isEqualTo(226000);
+        assertThat(totals.amount()).isEqualTo(totals.regularPrincipal()+totals.extraPrincipal()+totals.interest()+totals.fee());
+    }
+    @Test void actualMonthsFollowPaidDateNotCreatedDateOrDueMonthAndDoNotInventEmptyMonths()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner);
+        long feb=payment(owner,loan,"2026-02-28","REGULAR",100,0,10,0,0),mar=payment(owner,loan,"2026-03-01","REGULAR",200,0,20,0,0);
+        long due=due(owner,loan,"2026-03-25");allocate(owner,loan,feb,due,100,10,0);allocate(owner,loan,mar,due,200,20,0);
+        var months=actualPayments.monthly(owner,period("2026-01-01","2026-04-30"),null);
+        assertThat(months).extracting(v->v.month().toString()).containsExactly("2026-02","2026-03");
+        assertThat(months).extracting(v->v.totals().amount()).containsExactly(110L,220L);
+        assertThat(months).allSatisfy(v->assertThat(v.loanId()).isEqualTo(loan));
+    }
+    @Test void actualMonthsGroupByLoanKeepDuplicatesAndIncludePaidDeletedHistory()throws Exception {
+        var browser=browser();long owner=owner(browser),a=loan(owner),b=loan(owner);
+        payment(owner,a,"2026-03-05","EXTRA",0,100,0,0,0);payment(owner,a,"2026-03-05","EXTRA",0,100,0,0,0);
+        payment(owner,b,"2026-03-05","REGULAR",200,0,10,0,0);
+        jdbc.update("UPDATE loans SET status='DELETED' WHERE id=?",a);jdbc.update("UPDATE loans SET status='PAID' WHERE id=?",b);
+        var months=actualPayments.monthly(owner,period("2026-03-01","2026-03-31"),null);
+        assertThat(months).extracting(v->v.loanId()).containsExactly(a,b);
+        assertThat(months.getFirst().totals().paymentCount()).isEqualTo(2);assertThat(months.getFirst().totals().extraPrincipal()).isEqualTo(200);
+        assertThat(months.getLast().totals().amount()).isEqualTo(210);
+        assertThat(actualPayments.aggregate(owner,period("2026-03-01","2026-03-31"),a).amount()).isEqualTo(200);
+    }
+    @Test void actualDateBoundariesAndLoanOwnershipAreAppliedToEveryAggregate()throws Exception {
+        var a=browser();var b=browser();long userA=owner(a),userB=owner(b),loanA=loan(userA),empty=loan(userA),loanB=loan(userB);
+        payment(userA,loanA,"2026-03-04","REGULAR",100,0,0,0,0);payment(userA,loanA,"2026-03-05","REGULAR",200,0,0,0,0);
+        payment(userA,loanA,"2026-03-06","REGULAR",400,0,0,0,0);payment(userB,loanB,"2026-03-05","REGULAR",900,0,0,0,0);
+        var oneDay=period("2026-03-05","2026-03-05");
+        assertThat(actualPayments.aggregate(userA,oneDay,null).amount()).isEqualTo(200);
+        assertThat(actualPayments.monthly(userA,oneDay,loanA)).hasSize(1);
+        var noRows=actualPayments.aggregate(userA,oneDay,empty);assertThat(noRows.paymentCount()).isZero();assertThat(noRows.cashPaid()).isZero();
+        assertThat(actualPayments.monthly(userA,oneDay,empty)).isEmpty();
+        for(long missing:List.of(loanB,Long.MAX_VALUE)) {
+            assertThatThrownBy(()->actualPayments.aggregate(userA,oneDay,missing)).isInstanceOfSatisfying(com.loanrun.common.error.ApiException.class,e->assertThat(e.code()).isEqualTo("LOAN_NOT_FOUND"));
+            assertThatThrownBy(()->actualPayments.monthly(userA,oneDay,missing)).isInstanceOfSatisfying(com.loanrun.common.error.ApiException.class,e->assertThat(e.code()).isEqualTo("LOAN_NOT_FOUND"));
+        }
+    }
+    @Test void actualSumsNeverJoinAllocationsAndExistingListTotalsUseTheSameActualAmounts()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner),d1=due(owner,loan,"2026-03-10"),d2=due(owner,loan,"2026-03-25");
+        jdbc.update("UPDATE loans SET repayment_method='EQUAL_PRINCIPAL',prepayment_policy='KEEP_PAYMENT',initial_savings_balance=0 WHERE id=?",loan);
+        // A combined regular/extra installment payment uses no BULLET savings.
+        long p=payment(owner,loan,"2026-03-27","REGULAR",500000,100000,60000,100,0);
+        allocate(owner,loan,p,d1,250000,30000,0);allocate(owner,loan,p,d2,250000,30000,100);
+        var actual=actualPayments.aggregate(owner,period("2026-03-01","2026-03-31"),null);
+        assertThat(actual.paymentCount()).isEqualTo(1);assertThat(actual.amount()).isEqualTo(660100);assertThat(actual.cashPaid()).isEqualTo(660100);
+        assertThat(actualPayments.monthly(owner,period("2026-03-01","2026-03-31"),null).getFirst().totals()).isEqualTo(actual);
+        var data=list(browser,"?page_size=1");assertThat(data.path("count").longValue()).isEqualTo(actual.paymentCount());
+        assertThat(data.path("totals").path("amount").longValue()).isEqualTo(actual.amount());
+        assertThat(data.path("totals").path("savings_used_amount").longValue()).isEqualTo(actual.savingsUsed());
+        assertThat(data.path("results").get(0).path("due_allocations").size()).isEqualTo(2);
+    }
+    @Test void initialSavingsAndSavingAdditionsAreNotPaymentOrCashOutflowRecords()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner);
+        jdbc.update("INSERT INTO repayment_savings(user_id,loan_id,saved_at,amount,created_at) VALUES (?,?,'2026-03-05',100000,CURRENT_TIMESTAMP)",owner,loan);
+        var range=period("2026-03-01","2026-03-31");var actual=actualPayments.aggregate(owner,range,null);
+        assertThat(actual.paymentCount()).isZero();assertThat(actual.amount()).isZero();assertThat(actual.savingsUsed()).isZero();assertThat(actual.cashPaid()).isZero();
+        assertThat(actualPayments.monthly(owner,range,null)).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT initial_savings_balance FROM loans WHERE id=?",Long.class,loan)).isEqualTo(2000000);
+    }
+    @Test void zeroActualCashFromSavingsFundingRemainsDifferentFromAnEmptyPaymentSet()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner);
+        jdbc.update("UPDATE loans SET maturity_date='2026-03-25' WHERE id=?",loan);
+        payment(owner,loan,"2026-03-25","REGULAR",100000,0,0,0,100000);
+        var paid=actualPayments.aggregate(owner,period("2026-03-01","2026-03-31"),null);
+        var empty=actualPayments.aggregate(owner,period("2026-02-01","2026-02-28"),null);
+        assertThat(paid.cashPaid()).isZero();assertThat(paid.paymentCount()).isEqualTo(1);assertThat(paid.amount()).isEqualTo(100000);
+        assertThat(empty.cashPaid()).isZero();assertThat(empty.paymentCount()).isZero();assertThat(empty.amount()).isZero();
+    }
+    @Test void actualMonthlyAndWholeRangeLongOverflowsFailInsteadOfReturningWrappedFinancialData()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner);
+        for(int i=0;i<2;i++)payment(owner,loan,"2026-03-25","REGULAR",0,0,Long.MAX_VALUE-1,0,0);
+        var range=period("2026-03-01","2026-03-31");
+        assertThatThrownBy(()->actualPayments.aggregate(owner,range,null)).isInstanceOfSatisfying(com.loanrun.common.error.ApiException.class,e->assertThat(e.code()).isEqualTo("SERVICE_UNAVAILABLE"));
+        assertThatThrownBy(()->actualPayments.monthly(owner,range,null)).isInstanceOfSatisfying(com.loanrun.common.error.ApiException.class,e->assertThat(e.code()).isEqualTo("SERVICE_UNAVAILABLE"));
+    }
+    @Test void actualQueriesAreImmutableAndLeaveAllFinancialSourceAndRevisionStateUntouched()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner),payment=payment(owner,loan,"2026-03-25","EXTRA",0,100,0,10,50);
+        var userBefore=jdbc.queryForMap("SELECT revision,updated_at FROM demo_users WHERE id=?",owner);
+        var loanBefore=jdbc.queryForMap("SELECT * FROM loans WHERE id=?",loan);var paymentBefore=jdbc.queryForMap("SELECT * FROM payments WHERE id=?",payment);
+        var range=period("2026-03-01","2026-03-31");var first=actualPayments.monthly(owner,range,null);
+        assertThat(actualPayments.monthly(owner,range,null)).isEqualTo(first);assertThatThrownBy(first::clear).isInstanceOf(UnsupportedOperationException.class);
+        assertThat(jdbc.queryForMap("SELECT revision,updated_at FROM demo_users WHERE id=?",owner)).isEqualTo(userBefore);
+        assertThat(jdbc.queryForMap("SELECT * FROM loans WHERE id=?",loan)).isEqualTo(loanBefore);
+        assertThat(jdbc.queryForMap("SELECT * FROM payments WHERE id=?",payment)).isEqualTo(paymentBefore);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM idempotency_records WHERE user_id=?",Long.class,owner)).isZero();
     }
 
     @Test void confirmationWithoutRealBudgetProviderReturns503AndSavesNoFinancialOrReplayState()throws Exception {

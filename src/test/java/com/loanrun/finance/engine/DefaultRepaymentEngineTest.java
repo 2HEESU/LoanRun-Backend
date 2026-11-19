@@ -72,6 +72,8 @@ class DefaultRepaymentEngineTest {
             assertThat(row.interest()).isEqualTo(60_000);
         });
         assertThat(result.rows().getLast().saving()).isEqualTo(833_326);
+        assertThat(result.rows().getLast().scheduledPrincipal()).isEqualTo(12_000_000);
+        assertThat(result.rows()).allSatisfy(row -> assertThat(row.extraPrincipal()).isZero());
         assertThat(result.rows().getLast().remainingSaving()).isZero();
         assertThat(result.totalInterest()).isEqualTo(720_000);
         assertThat(result.totalCash()).isEqualTo(10_720_000);
