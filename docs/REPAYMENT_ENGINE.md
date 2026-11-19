@@ -46,6 +46,12 @@ null fee and null totalCash. extraCash in those rows is the gross modeled compon
 payment. Consumers must retain this uncertainty and cannot claim a known fee-inclusive cash requirement or net saving.
 Even a baseline with no extra payment retains unknown fee conditions for consistent candidate comparisons.
 
+Team 1's internal `simulateWithExtraPrincipal` entry point supports verified monthly principal-speed projections
+without changing the shared contract. It reuses the same schedule/state calculation, caps extra principal after
+basic principal, and adds the actual rounded fee to that principal rather than treating it as a cash cap.
+Only pinned KEEP_PLANS inputs are allowed; cash and principal for the same loan/month cannot overlap,
+and BULLET cannot receive direct extra principal. See [the individual projection adapter](PLAN_PAYOFF_PROJECTION.md).
+
 totalCash sums future basic cash, extra cash and saving additions, subtracting the principal funded from existing
 loan-specific savings at maturity. New saving outflows are counted once, and the initial asset is not a new contribution.
 Totals describe the requested horizon; HORIZON_EXHAUSTED indicates an incomplete projection without asserting a

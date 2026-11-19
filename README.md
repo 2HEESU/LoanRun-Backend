@@ -180,5 +180,9 @@ and separate knowledge cutoff, preserving missing historical bases as null. No r
 See [plan source query boundaries](docs/PLAN_SOURCE_QUERY.md).
 
 Plan projection input selection distinguishes verified monthly principal/saving averages from saved cash goals.
-Unknown months remain unknown; payoff simulation and runtime observation evidence are still pending.
+Unknown months remain unknown; runtime observation evidence is still pending.
 See [observation window, amount units and integration boundaries](docs/PLAN_PROJECTION_BASIS.md).
+
+Individual payoff projections now connect that selection to the existing engine, adding fees to observed
+extra principal while preserving fee-inclusive fallback cash and BULLET savings-shortfall behavior.
+See [payoff projection behavior and runtime integration limits](docs/PLAN_PAYOFF_PROJECTION.md).
