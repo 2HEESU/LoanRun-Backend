@@ -110,7 +110,7 @@ public class PlanPerformanceQueryService {
     private static Actuals actuals(Scope scope,Recorded raw,boolean bullet,boolean payment,boolean saving) {
         return new Actuals(scope,payment?raw.principal():null,!bullet&&payment?raw.extraPrincipal():null,bullet&&saving?raw.savingAdditions():null);
     }
-    private Status regularStatus(long user,long loan,LocalDate registration,LocalDate today) {
+    Status regularStatus(long user,long loan,LocalDate registration,LocalDate today) {
         var rows=dues.range(user,new DateRange(registration,YearMonth.from(today).atEndOfMonth()),loan);
         for(var row:rows)if(!row.evaluatedOn().equals(today))throw ApiException.unavailable();
         for(var row:rows)if(row.state().status()==Status.UNRECORDED)return Status.UNRECORDED;

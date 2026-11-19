@@ -29,6 +29,10 @@ public class LoanSourceRepository {
         var rows=jdbc.query("SELECT * FROM loans WHERE user_id=:user AND id=:id",Map.of("user",userId,"id",loanId),this::loanRow);
         if(rows.isEmpty())throw missing();return rows.getFirst();
     }
+    public List<Long> activeLoanIds(long userId) {
+        owner(userId);
+        return List.copyOf(jdbc.queryForList("SELECT id FROM loans WHERE user_id=:user AND status='ACTIVE' ORDER BY id",Map.of("user",userId),Long.class));
+    }
 
     /** Public rate history: one statement checks visibility and reads the complete original sequence. */
     public List<Rate> rateHistory(long userId,long loanId) {
