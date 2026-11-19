@@ -91,7 +91,7 @@ revision and replay response commit together for an actual flag change. Without 
 provider a changed request returns 503 and saves nothing. An unchanged request skips recalculation/revision
 and returns `report_stale: false` (no additional invalidation). See [confirmation states, locking and integration limits](docs/DUE_CONFIRMATION.md).
 
-Current routes: GET `/api/repayment-savings/`, GET/POST `/api/loans/`, POST `/api/loans/preview/`, GET `/api/loans/{loan_id}/rate-history/`, GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
+Current routes: GET/POST `/api/repayment-savings/`, GET/POST `/api/loans/`, POST `/api/loans/preview/`, GET `/api/loans/{loan_id}/rate-history/`, GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
 GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`, POST `/api/risks/simulate/`, GET `/api/payments/`, GET `/api/payments/{payment_id}/`, PATCH `/api/payments/schedule/{due_item_id}/confirmation/`.
 Further domain endpoints are tracked locally as pending until implemented and tested.
 
@@ -154,3 +154,7 @@ frozen regular dues and actual savings. Unknown plan-based payoff dates remain n
 Repayment savings: `GET /api/repayment-savings/?loan_id=...` reads the owner's BULLET savings ledger.
 Optional `from`/`to` filter records only; current assets and recorded current-month additions use their own scopes.
 See [savings list, goal sources and limits](docs/SAVING_LIST.md).
+
+Repayment saving creation: `POST /api/repayment-savings/` requires `Idempotency-Key` and atomically
+saves the owner's active BULLET addition, recalculation and revision. Without the real budget recalculation
+provider it returns 503 and stores nothing. See [saving creation and integration status](docs/SAVING_CREATE.md).
