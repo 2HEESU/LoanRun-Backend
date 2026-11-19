@@ -278,3 +278,12 @@ V4없음은 빈이력이 아니라503이며 명시적V2-only조회와 구분한�
 [입력 근거·계산 규칙·실제 통합 한계](PLAN_PERFORMANCE.md) 참조.
 
 검증: JDK21 `./gradlew clean build` 성공, 전체521 tests / 0 failures/errors/skipped(신규24).
+
+## Issue #132 — 저장 계획 기준 일정 및 진행률 입력 생성
+
+#131 병합(feb4652)을 개인 develop/Fork에 반영했다. 저장 버전의 원래 약정·시작 잔액·캡처일과
+확정 현금/적립 목표를 기존 엔진에 연결하여 성과 계산용 Planned를 생성한다. V2 약정 부재와
+이전 회차 미해결·수수료 미확인 원금은 일정 확정으로 오인하지 않는다. 공통 계약/DB/HTTP 변경 없음.
+[계획 기준 일정 및 실제 입력 공급 한계](PLAN_REFERENCE_SCHEDULE.md) 참조.
+
+검증: JDK21 `./gradlew clean build` 성공, 전체540 tests / 0 failures/errors/skipped(신규19).

@@ -190,3 +190,7 @@ See [payoff projection behavior and runtime integration limits](docs/PLAN_PAYOFF
 Plan performance calculations now separate the full monthly goal from arrived cumulative goals, compare exact
 principal/saving amounts, and preserve unknown observations and regular-unrecorded status.
 See [plan progress, track rules and required evidence](docs/PLAN_PERFORMANCE.md).
+
+Saved-version reference schedules now feed that performance calculator through the existing engine.
+Missing original terms and uncertain fee-adjusted principal remain unavailable.
+See [reference schedule generation and evidence limits](docs/PLAN_REFERENCE_SCHEDULE.md).
