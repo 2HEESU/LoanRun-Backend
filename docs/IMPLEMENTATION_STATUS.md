@@ -197,3 +197,14 @@ DB/공통 계약 변경 없음. [등록 동작과 의존성](SAVING_CREATE.md)�
 검증: JDK 21 `./gradlew clean build` 성공, 전체366 tests / 0 failures/errors/skipped.
 신규 등록 HTTP/DB 검증23개 + 실제 예산 공급자 없는 HTTP 503/무저장 검증1개 포함.
 초기 테스트 보조 메서드 이름 충돌로 컴파일에 실패했으며 수정 후 전체 검증을 통과했다.
+
+## Issue #116 — API #34 상환자금 적립 수정
+
+#115 병합(da7311b)을 개인 develop/Fork에 반영했다. PATCH는 생략 유지/null 거절, 활성 BULLET·소유권·
+과거 잠금, 날짜/금액 및 사용 후 잔액을 검증한다. 사용자 확인에 따라 순서 불명확한 위험 감소/지연은409다.
+같은 날짜 증가/안전한 변경을 일괄 차단하지 않는다. 기존/새 월 중 이른 월부터 재계산·revision·응답을 원자 저장한다.
+현재 예산 공급자가 없어 실제 변경은503/무저장, 적격 무변경은200/추가 revision 없음이다.
+DB/공통 계약 변경 없음. [수정 규칙·트랜잭션·한계](SAVING_UPDATE.md) 참조.
+
+검증: JDK 21 `./gradlew clean build` 성공, 전체399 tests / 0 failures/errors/skipped.
+신규 수정 통합 검증32개 + 실제 예산 공급자 없는 변경/무변경 HTTP 검증1개 포함.
