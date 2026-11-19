@@ -79,8 +79,13 @@ including fee/savings-use components, every saved due allocation and snapshot-ba
 History remains readable for PAID/DELETED loans. Missing/foreign records return the same 404; no actuals
 are rewritten or inferred. See [payment detail semantics](docs/PAYMENT_DETAIL.md). Payment writes remain pending.
 
+Payment list: `GET /api/payments/` accepts optional `loan_id`, `from`, `to`, `type`, `page`, `page_size`.
+It uses inclusive actual-date filters, stable newest-first pages (default 1/20, maximum size 100), and
+full-filter count/totals independent of the page. Items reuse payment detail, including all due allocations.
+See [pagination, ownership and aggregate semantics](docs/PAYMENT_LIST.md).
+
 Current routes: POST `/api/loans/`, POST `/api/loans/preview/`, GET `/api/loans/{loan_id}/rate-history/`, GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
-GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`, POST `/api/risks/simulate/`, GET `/api/payments/{payment_id}/`.
+GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`, POST `/api/risks/simulate/`, GET `/api/payments/`, GET `/api/payments/{payment_id}/`.
 Further domain endpoints are tracked locally as pending until implemented and tested.
 
 Export accepts `format=csv` and optional `start_month`/`end_month` in `YYYY-MM` form.
