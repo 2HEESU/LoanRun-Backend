@@ -44,6 +44,7 @@ class OverallPlanIntegrationTest {
     @Autowired LoanSourceRepository sources;@Autowired PlanViewQueryService views;@Autowired RevisionPort revisions;@Autowired Clock clock;
     @LocalServerPort int port;
     @BeforeEach void setup()throws Exception {
+        if(jdbc.queryForObject("SELECT to_regclass('payment_due_archives')",String.class)==null)jdbc.execute(Files.readString(Path.of("docs/sql/payment_due_archives_proposal.sql")));
         when(overall.overallState(anyLong())).thenAnswer(i->queries.overallState(i.getArgument(0)));
         when(overall.plannedAllocations(anyLong(),any())).thenAnswer(i->queries.plannedAllocations(i.getArgument(0),i.getArgument(1)));
         if(jdbc.queryForObject("SELECT to_regclass('plan_application_events')",String.class)==null)jdbc.execute(Files.readString(Path.of("docs/sql/plan_application_events_proposal.sql")));
@@ -87,4 +88,11 @@ class OverallPlanIntegrationTest {
     @Test void repeatedReadPreservesSourcesAndRejectsQueryInjection()throws Exception {
         var b=browser();long user=pro(b),id=loan(user,false,true),revision=revisions.current(user);var before=sources.loanSnapshot(user,id,LocalDate.of(2026,3,1));assertThat(overall(b)).isEqualTo(overall(b));assertThat(revisions.current(user)).isEqualTo(revision);assertThat(sources.loanSnapshot(user,id,LocalDate.of(2026,3,1))).isEqualTo(before);assertThat(get(b,"/api/plans/overall/?user_id=1").statusCode()).isEqualTo(400);
     }
+    @Test void nextCycleGoalsAreNotReplacedWithTheCurrentCalendarMonthsOldTargets()throws Exception {
+        var b=browser();long user=pro(b),a=loan(user,false,true);loan(user,false,true);long due=jdbc.queryForObject("SELECT id FROM due_items WHERE loan_id=?",Long.class,a);
+        var payment=mapper.createObjectNode();payment.put("loan_id",a);payment.put("paid_at","2026-03-01");payment.put("amount",1260000);payment.put("payment_type","REGULAR");payment.put("due_item_id",due);var paid=request(b,"POST","/api/payments/",payment,"pay-first");assertThat(paid.statusCode()).as(paid.body()).isEqualTo(201);
+        var saved=request(b,"PUT","/api/repayment-plans/",prepared(b,a),"next-cycle");assertThat(saved.statusCode()).as(saved.body()).isEqualTo(200);var d=overall(b);assertThat(d.path("monthly_extra_amount").longValue()).isEqualTo(400000);long allocation=0;for(var row:d.path("allocations"))allocation+=row.path("amount").longValue();assertThat(allocation).isEqualTo(400000);
+        assertThat(queries.plannedAllocations(user,YearMonth.of(2026,3)).stream().filter(x->x.loanId()==a).findFirst().orElseThrow().cashAmount()).isZero(); // This month's old target is independently preserved.
+    }
+
 }
