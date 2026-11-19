@@ -1,3 +1,5 @@
+> 최신 중간 점검: [2026-11-19 진행 현황](PROGRESS_2026_11_19.md). 아래 내용은 PR별 당시 기록입니다.
+
 # Implementation audit — 2026-11-18 KST
 
 Audited central develop at `579141fc600e3594ad3c6592b60dd2d3b89f7652`, its Git history, existing tests, and
@@ -157,3 +159,14 @@ V2, so normal runtime has observed=false/actuals=null until committed evidence i
 provider, new public API, shared port or migration is added. Completion storage/input workflow,
 LoanQueryPort and actual budget/report integration are not reported complete. The initial JDK Month
 name conflict was corrected by naming the internal result ObservedMonth before successful verification.
+
+## Issue #108 — API #12 보유 대출 목록
+
+개인 브랜치에서 GET /api/loans/를 구현했다. ACTIVE/PAID/ALL, 세션 소유권, ACTIVE 합계,
+확정 회차와 실제 적립금, 현재 잔액·원본 약정 메타데이터를 사용한다. 현재 계획의 예상 완납일은
+근거가 없어 null이다. 전체 LoanQueryPort나 예산 재계산 통합 완료를 의미하지 않는다.
+DB/공통 계약 변경은 없다. V3 이전에 V4를 적용하지 않는다.
+세부 사항은 [목록 조회](LOAN_LIST.md), 병합 전후 개수는 [중간 점검](PROGRESS_2026_11_19.md)을 참조한다.
+
+검증: JDK 21 `./gradlew clean build` 성공, 전체 304 tests / 0 failures / 0 errors / 0 skipped.
+새 목록 HTTP/PostgreSQL 통합 검증 19개 포함. 배포/프론트 전체 흐름 검증은 이 결과에 포함하지 않는다.

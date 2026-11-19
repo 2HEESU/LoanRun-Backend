@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
-/** Public registration view, separate from persistence and internal engine terms. */
+/** Common public loan view, separate from persistence and internal engine terms. */
 public record LoanCreated(long loanId, Long productId, String institutionName, String productName,
     LoanType loanType, String loanForm, RepaymentMethod repaymentMethod, long originalPrincipal,
     long remainingPrincipal, BigDecimal annualRate, RateType rateType, Integer rateResetMonths,
