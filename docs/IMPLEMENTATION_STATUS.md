@@ -306,3 +306,13 @@ false/null이며 정상 빈 관측과 조회 실패를 구분한다. 공통 계�
 [현재 예상 완납 조회와 통합 한계](CURRENT_PLAN_PROJECTION.md) 참조.
 
 검증: JDK21 `./gradlew clean build` 성공, 전체583 tests / 0 failures/errors/skipped(신규17).
+
+## Issue #138 — 실제 월·누적 실적 기반 계획 성과 조회
+
+#137 병합(252272f)을 개인 develop/Fork에 반영했다. 실제 원천·명시적 월 확인·원래 일정·정기 상태를
+성과 계산기에 연결한다. 부분월과 미확인 누적을 구분하고 raw 기록을 실제0으로 확정하지 않는다.
+원금 시작 잔액 이후 감소 근거는 자동 생성하지 않는다. 공통 계약/DB/HTTP 변경 없음.
+[성과 조회 기간·증빙·실제 연결 한계](PLAN_PERFORMANCE_QUERY.md) 참조.
+
+검증: JDK21 `./gradlew clean build` 성공, 전체598 tests / 0 failures/errors/skipped(신규15).
+초기 검증에서 효력일 이전으로 잡힌 테스트 납부일1건은 자료 수정 후 통과했다.
