@@ -40,4 +40,14 @@ class PaymentObservationQueryTest {
             assertThatThrownBy(()->service(beans).observe(7,scope.month(),1L)).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.code()).isEqualTo("SERVICE_UNAVAILABLE"));
         }
     }
+    @Test void sharedCaptureInstantRejectsAConfirmationThatArrivedAfterTheCompositionStarted() {
+        var beans=new StaticListableBeanFactory();
+        beans.addBean("confirmation",(PaymentObservationSource)requested->Optional.of(new Confirmation(scope,snapshot.fingerprint(),Kind.ZERO_CONFIRMED,clock.instant())));
+        var result=service(beans).observeAt(7,scope.month(),1L,clock.instant().minusSeconds(1));
+        assertThat(result.observed()).isFalse();assertThat(result.reason()).isEqualTo(Reason.FUTURE_CONFIRMATION);
+    }
+    @Test void aFutureCaptureInstantCannotGrantAccessToFutureEvidence() {
+        assertThatThrownBy(()->service(new StaticListableBeanFactory()).observeAt(7,scope.month(),1L,clock.instant().plusSeconds(1)))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
 }

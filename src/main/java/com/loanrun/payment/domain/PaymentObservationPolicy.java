@@ -16,6 +16,8 @@ public final class PaymentObservationPolicy {
         var confirmation=evidence.get();
         if(!snapshot.scope().equals(confirmation.scope()))throw new IllegalArgumentException("Confirmation scope mismatch");
         if(confirmation.confirmedAt().isAfter(now))return unknown(snapshot,Reason.FUTURE_CONFIRMATION);
+        if(snapshot.scope().month().isAfter(YearMonth.from(confirmation.confirmedAt().atZone(ZoneId.of("Asia/Seoul")))))
+            return unknown(snapshot,Reason.FUTURE_MONTH);
         if(!snapshot.fingerprint().equals(confirmation.fingerprint()))return unknown(snapshot,Reason.STALE_CONFIRMATION);
         if(confirmation.kind()==Kind.ZERO_CONFIRMED&&snapshot.recorded().paymentCount()!=0)
             return unknown(snapshot,Reason.ZERO_CONTRADICTS_RECORDS);
