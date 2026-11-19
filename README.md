@@ -186,3 +186,7 @@ See [observation window, amount units and integration boundaries](docs/PLAN_PROJ
 Individual payoff projections now connect that selection to the existing engine, adding fees to observed
 extra principal while preserving fee-inclusive fallback cash and BULLET savings-shortfall behavior.
 See [payoff projection behavior and runtime integration limits](docs/PLAN_PAYOFF_PROJECTION.md).
+
+Plan performance calculations now separate the full monthly goal from arrived cumulative goals, compare exact
+principal/saving amounts, and preserve unknown observations and regular-unrecorded status.
+See [plan progress, track rules and required evidence](docs/PLAN_PERFORMANCE.md).
