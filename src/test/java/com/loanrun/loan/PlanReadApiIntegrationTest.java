@@ -176,4 +176,68 @@ class PlanReadApiIntegrationTest {
         assertThat(json(get(b,"/api/loans/"+id+"/"))).isEqualTo(json(get(b,"/api/loans/"+id+"/")));
         assertThat(sources.loanSnapshot(user,id,LocalDate.of(2026,3,1))).isEqualTo(before);assertThat(revisions.current(user)).isEqualTo(revision);
     }
+    HttpResponse<String> mutate(HttpClient b,String method,String path,String body)throws Exception {
+        return b.send(HttpRequest.newBuilder(URI.create("http://localhost:"+port+path)).header("Origin","http://localhost:5173").header("Content-Type","application/json")
+            .method(method,HttpRequest.BodyPublishers.ofString(body)).build(),HttpResponse.BodyHandlers.ofString());
+    }
+    long variableLoan(long user,String method,Long contractual)throws Exception {
+        var body=new LoanPreviewTest().body();body.put("rate_type","VARIABLE");body.put("rate_reset_months",6);body.put("fee_exempt",true);body.put("repayment_method",method);
+        if(contractual!=null)body.put("contractual_monthly_payment",contractual);
+        long id=registration.create(user,body,null).body().path("data").path("loan_id").longValue();
+        jdbc.update("UPDATE loans SET snapshot_date='2026-02-28' WHERE id=?",id);
+        jdbc.update("UPDATE loan_balance_snapshots SET effective_date='2026-02-28' WHERE loan_id=?",id);
+        jdbc.update("UPDATE loan_rate_histories SET effective_date='2026-02-28' WHERE loan_id=?",id);return id;
+    }
+    HttpResponse<String> rate(HttpClient b,long id,String body)throws Exception{return mutate(b,"POST","/api/loans/"+id+"/rate-history/",body);}
+    @Test void rateWritesOriginalHistoryRepricesOnlyFutureDueAndBumpsOnce()throws Exception {
+        var b=browser();long user=owner(b),id=variableLoan(user,"EQUAL_PRINCIPAL",null);var before=sources.loan(user,id);long rev=revisions.current(user);
+        clearInvocations(recalc);var r=rate(b,id,"{\"effective_date\":\"2026-03-01\",\"annual_rate\":7}");assertThat(r.statusCode()).as(r.body()).isEqualTo(201);var d=json(r).path("data");
+        assertThat(json(r).path("code").asText()).isEqualTo("LOAN_RATE_UPDATE_SUCCESS");assertThat(d.path("rate_record").path("previous_rate").decimalValue()).isEqualByComparingTo("6");
+        assertThat(d.path("loan").path("annual_rate").decimalValue()).isEqualByComparingTo("7");assertThat(d.path("loan").path("next_rate_reset_date").asText()).isEqualTo("2026-09-01");
+        assertThat(d.path("estimated_monthly_payment").longValue()).isEqualTo(1270000);assertThat(d.path("recalculated_plan").path("estimated_total_interest").longValue()).isEqualTo(385000);
+        assertThat(sources.loan(user,id).initialPlan()).isEqualTo(before.initialPlan());assertThat(sources.loan(user,id).latestSnapshotDate()).isEqualTo(before.latestSnapshotDate());
+        assertThat(revisions.current(user)).isEqualTo(rev+1);verify(recalc).recalculateFrom(user,YearMonth.of(2026,3));
+        assertThat(jdbc.queryForObject("SELECT interest_amount FROM due_items WHERE loan_id=?",Long.class,id)).isEqualTo(70000);
+        assertThat(json(get(b,"/api/loans/"+id+"/rate-history/")).path("data").path("rates").size()).isEqualTo(2);
+        assertThat(rate(b,id,"{\"effective_date\":\"2026-03-01\",\"annual_rate\":7}").statusCode()).isEqualTo(409);assertThat(revisions.current(user)).isEqualTo(rev+1);
+    }
+    @Test void ratePreservesContractualNextAmountButDoesNotCopyItIntoLaterCycles()throws Exception {
+        var b=browser();long user=owner(b),id=variableLoan(user,"EQUAL_PAYMENT",1300000L);
+        var r=rate(b,id,"{\"effective_date\":\"2026-03-01\",\"annual_rate\":0}");assertThat(r.statusCode()).as(r.body()).isEqualTo(201);
+        assertThat(json(r).path("data").path("estimated_monthly_payment").longValue()).isEqualTo(1300000);
+        assertThat(sources.loan(user,id).baseAnchor()).isEqualTo(1200000);assertThat(sources.loan(user,id).contractualNextAmount()).isEqualTo(1300000);
+    }
+    @Test void ratePreservesPastPaidRowsAndAllOriginalPayments()throws Exception {
+        var b=browser();long user=owner(b),id=variableLoan(user,"EQUAL_PRINCIPAL",null);
+        jdbc.update("INSERT INTO due_items(user_id,loan_id,due_date,principal_amount,interest_amount,fee_amount,required_amount,terms_revision,created_at) VALUES (?,?,'2026-02-25',100,10,0,110,1,CURRENT_TIMESTAMP)",user,id);
+        var before=jdbc.queryForMap("SELECT * FROM due_items WHERE loan_id=? AND due_date='2026-02-25'",id);
+        assertThat(rate(b,id,"{\"effective_date\":\"2026-03-01\",\"annual_rate\":6.25}").statusCode()).isEqualTo(201);
+        assertThat(jdbc.queryForMap("SELECT * FROM due_items WHERE loan_id=? AND due_date='2026-02-25'",id)).isEqualTo(before);
+    }
+    @ParameterizedTest @ValueSource(strings={"{}","{\"effective_date\":null,\"annual_rate\":7}","{\"effective_date\":\"2026-02-30\",\"annual_rate\":7}","{\"effective_date\":\"2026-03-02\",\"annual_rate\":7}","{\"effective_date\":\"2026-03-01\",\"annual_rate\":30}","{\"effective_date\":\"2026-03-01\",\"annual_rate\":6.001}","{\"effective_date\":\"2026-03-01\",\"annual_rate\":\"7\"}","{\"effective_date\":\"2026-03-01\",\"annual_rate\":7,\"user_id\":1}"})
+    void invalidRateInputsNeverWrite(String body)throws Exception {
+        var b=browser();long user=owner(b),id=variableLoan(user,"EQUAL_PRINCIPAL",null);long rev=revisions.current(user);
+        var r=rate(b,id,body);assertThat(r.statusCode()).as(r.body()).isEqualTo(400);assertThat(revisions.current(user)).isEqualTo(rev);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM loan_rate_histories WHERE loan_id=?",Integer.class,id)).isEqualTo(1);
+    }
+    @Test void rateFixedForeignDeletedAndReversedDatesUseContractErrors()throws Exception {
+        var b=browser();var other=browser();long user=owner(b),fixed=loan(user,false,true),id=variableLoan(user,"EQUAL_PRINCIPAL",null);owner(other);
+        String input="{\"effective_date\":\"2026-03-01\",\"annual_rate\":7}";
+        assertThat(json(rate(b,fixed,input)).path("code").asText()).isEqualTo("RATE_CHANGE_NOT_ALLOWED");
+        assertThat(rate(other,id,input).statusCode()).isEqualTo(404);assertThat(rate(b,id,"{\"effective_date\":\"2026-02-28\",\"annual_rate\":7}").statusCode()).isEqualTo(409);
+        jdbc.update("UPDATE loans SET status='DELETED' WHERE id=?",id);assertThat(rate(b,id,input).statusCode()).isEqualTo(404);
+    }
+    @Test void rateBudgetAndResponseFailuresRollBackEverySourceIncludingRevision()throws Exception {
+        var b=browser();long user=owner(b),id=variableLoan(user,"EQUAL_PRINCIPAL",null);var before=sources.loanSnapshot(user,id,LocalDate.of(2026,3,1));long rev=revisions.current(user);
+        doThrow(com.loanrun.common.error.ApiException.unavailable()).when(recalc).recalculateFrom(user,YearMonth.of(2026,3));
+        String input="{\"effective_date\":\"2026-03-01\",\"annual_rate\":7}";assertThat(rate(b,id,input).statusCode()).isEqualTo(503);
+        assertThat(sources.loanSnapshot(user,id,LocalDate.of(2026,3,1))).isEqualTo(before);assertThat(revisions.current(user)).isEqualTo(rev);
+        doNothing().when(recalc).recalculateFrom(user,YearMonth.of(2026,3));when(budget.monthlyOverrides(user,YearMonth.of(2026,3))).thenReturn(null);
+        assertThat(rate(b,id,input).statusCode()).isEqualTo(503);assertThat(sources.loanSnapshot(user,id,LocalDate.of(2026,3,1))).isEqualTo(before);assertThat(revisions.current(user)).isEqualTo(rev);
+    }
+    @Test void rateConfirmedFutureDueIsNeverOverwritten()throws Exception {
+        var b=browser();long user=owner(b),id=variableLoan(user,"EQUAL_PRINCIPAL",null);jdbc.update("UPDATE due_items SET confirmed_unpaid=true WHERE loan_id=?",id);
+        var before=sources.loanSnapshot(user,id,LocalDate.of(2026,3,1));assertThat(rate(b,id,"{\"effective_date\":\"2026-03-01\",\"annual_rate\":7}").statusCode()).isEqualTo(409);
+        assertThat(sources.loanSnapshot(user,id,LocalDate.of(2026,3,1))).isEqualTo(before);
+    }
 }
