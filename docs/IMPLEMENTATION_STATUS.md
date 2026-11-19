@@ -351,3 +351,7 @@ false/null이며 정상 빈 관측과 조회 실패를 구분한다. 공통 계�
 ### 나머지 자동 진행 2/6: PRO 전체 계획 (#23)
 - GET `/api/plans/overall/`: PRO 게이트, SINGLE_LOAN/EMPTY/AVAILABLE, 실제 적용 상태/우선순위·revision 기반 재검토, 읽기 전용.
 - Team 1 경로 구현 20/24, 전체 28/50. 실제 예산/DB 원천 대기 유지. [상세](OVERALL_PLAN_API.md).
+
+### 나머지 자동 진행 3/6: 납부 일정 (#26)
+- GET `/api/payments/schedule/`: 실제 회차 ID·정기 상태/달력·월 실적 분리, 선택 소유권 및 미생성 회차 확인.
+- Team 1 경로 구현 21/24, 전체 29/50. 원천 없는 월 목표는 null, 미생성 미래 회차는503. [상세](PAYMENT_SCHEDULE_API.md).
