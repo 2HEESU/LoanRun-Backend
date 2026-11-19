@@ -39,4 +39,8 @@ public class PaymentWriteRepository {
         var p=e.request();jdbc.update("UPDATE payments SET paid_at=:date,payment_type=:type,amount=:amount,principal_amount=:principal,extra_amount=:extra,interest_amount=:interest,fee_amount=:fee,savings_used_amount=:used WHERE user_id=:user AND loan_id=:loan AND id=:id",new MapSqlParameterSource().addValue("user",user).addValue("loan",loan).addValue("id",p.id()).addValue("date",p.date()).addValue("type",p.kind().name()).addValue("amount",p.amount()).addValue("principal",e.principal()).addValue("extra",e.extra()).addValue("interest",e.interest()).addValue("fee",e.fee()).addValue("used",p.used()));
     }
 
+    public void delete(long user,long loan,long payment) {
+        var p=Map.of("user",user,"loan",loan,"payment",payment);jdbc.update("DELETE FROM payment_allocations WHERE user_id=:user AND loan_id=:loan AND payment_id=:payment",p);jdbc.update("DELETE FROM payments WHERE user_id=:user AND loan_id=:loan AND id=:payment",p);
+    }
+
 }
