@@ -125,4 +125,55 @@ class PlanReadApiIntegrationTest {
         var p=list(b,"").path("plans").get(0);assertThat(p.path("actual_saving_amount").longValue()).isEqualTo(100);
         assertThat(p.path("cumulative_actual_saving_amount").longValue()).isZero();assertThat(p.path("savings_balance").longValue()).isEqualTo(2000100);
     }
+    @Test void detailReusesPublicBaseAndPlanWithoutLeakingAnEntity()throws Exception {
+        var b=browser();long user=owner(b),id=loan(user,false,true);var r=get(b,"/api/loans/"+id+"/");assertThat(r.statusCode()).as(r.body()).isEqualTo(200);
+        var d=json(r);assertThat(d.path("code").asText()).isEqualTo("LOAN_DETAIL_SUCCESS");var data=d.path("data");
+        assertThat(data.path("loan_id").longValue()).isEqualTo(id);assertThat(data.path("remaining_principal").longValue()).isEqualTo(12000000);
+        assertThat(data.path("estimated_remaining_interest").longValue()).isEqualTo(330000);
+        assertThat(data.path("plan")).isEqualTo(list(b,"?loan_id="+id).path("plans").get(0));assertThat(data.has("user_id")).isFalse();
+        var next=data.path("next_payment");assertThat(next.path("due_item_id").longValue()).isPositive();assertThat(next.path("status").asText()).isEqualTo("UPCOMING");
+        assertThat(next.path("required_amount").longValue()).isEqualTo(1260000);assertThat(next.path("total_planned_amount").longValue()).isEqualTo(1260000);
+        assertThat(get(b,"/api/loans/preview/").statusCode()).isEqualTo(405);
+    }
+    @Test void detailVisibilityFiltersBeforeParsingADeletedOrUnrelatedMalformedPlan()throws Exception {
+        var b=browser();var other=browser();long user=owner(b),id=loan(user,false,true),broken=loan(user,false,true);owner(other);
+        jdbc.update("UPDATE loans SET initial_plan_snapshot='{}'::jsonb WHERE id=?",broken);
+        assertThat(get(b,"/api/loans/"+id+"/").statusCode()).isEqualTo(200);
+        assertThat(json(get(other,"/api/loans/"+id+"/"))).isEqualTo(json(get(other,"/api/loans/9223372036854775807/")));
+        jdbc.update("UPDATE loans SET status='DELETED' WHERE id=?",broken);
+        assertThat(get(b,"/api/loans/"+broken+"/").statusCode()).isEqualTo(404);
+        assertThat(get(b,"/api/repayment-plans/?loan_id="+broken).statusCode()).isEqualTo(404);
+    }
+    @Test void detailPaidLoanHasNoNextObligationOrInventedPayoff()throws Exception {
+        var b=browser();long user=owner(b),id=loan(user,false,true);jdbc.update("UPDATE loans SET remaining_principal=0,status='PAID' WHERE id=?",id);
+        var r=get(b,"/api/loans/"+id+"/");assertThat(r.statusCode()).as(r.body()).isEqualTo(200);var d=json(r).path("data");
+        assertThat(d.path("next_payment").isNull()).isTrue();assertThat(d.path("plan").path("monthly_amount").longValue()).isZero();
+        assertThat(d.path("estimated_remaining_interest").isNull()).isTrue();
+    }
+    @Test void detailPartialRegularAllocationsAreNotCountedAsExtraOrRecharged()throws Exception {
+        var b=browser();long user=owner(b),id=loan(user,false,true);
+        long p=jdbc.queryForObject("INSERT INTO payments(user_id,loan_id,paid_at,payment_type,amount,principal_amount,extra_amount,interest_amount,fee_amount,savings_used_amount,created_at) VALUES (?,?,'2026-03-01','REGULAR',50000,0,0,50000,0,0,CURRENT_TIMESTAMP) RETURNING id",Long.class,user,id);
+        jdbc.update("INSERT INTO payment_allocations(user_id,loan_id,payment_id,due_item_id,principal_amount,interest_amount,fee_amount) SELECT ?,?,?,id,0,50000,0 FROM due_items WHERE loan_id=?",user,id,p,id);
+        var r=get(b,"/api/loans/"+id+"/");assertThat(r.statusCode()).as(r.body()).isEqualTo(200);var d=json(r).path("data");var next=d.path("next_payment");
+        assertThat(next.path("status").asText()).isEqualTo("PARTIAL");assertThat(next.path("paid_required_amount").longValue()).isEqualTo(50000);
+        assertThat(next.path("outstanding_amount").longValue()).isEqualTo(1210000);assertThat(next.path("paid_extra_amount").longValue()).isZero();
+        assertThat(d.path("estimated_remaining_interest").isNull()).isTrue();
+    }
+    @Test void detailCurrentSavingAndUnknownFeeStayConsistentWithPlanAndList()throws Exception {
+        var b=browser();long user=owner(b),id=loan(user,true,false);
+        jdbc.update("INSERT INTO repayment_savings(user_id,loan_id,saved_at,amount,created_at) VALUES (?,?,'2026-03-01',100,CURRENT_TIMESTAMP)",user,id);
+        var r=get(b,"/api/loans/"+id+"/");assertThat(r.statusCode()).as(r.body()).isEqualTo(200);var d=json(r).path("data");
+        assertThat(d.path("savings_balance").longValue()).isEqualTo(2000100);assertThat(d.path("next_payment").path("actual_saving_amount").longValue()).isEqualTo(100);
+        assertThat(d.path("estimated_total_fee").isNull()).isTrue();
+    }
+    @Test void detailQueriesAndMissingSourcesCannotProduceFakeSuccess()throws Exception {
+        var b=browser();long user=owner(b),id=loan(user,false,true);
+        assertThat(get(b,"/api/loans/"+id+"/?user_id=1").statusCode()).isEqualTo(400);
+        when(budget.monthlyOverrides(anyLong(),any())).thenReturn(null);assertThat(get(b,"/api/loans/"+id+"/").statusCode()).isEqualTo(503);
+    }
+    @Test void detailRepeatedReadsPreserveSourcesAndRevision()throws Exception {
+        var b=browser();long user=owner(b),id=loan(user,false,true);var before=sources.loanSnapshot(user,id,LocalDate.of(2026,3,1));long revision=revisions.current(user);
+        assertThat(json(get(b,"/api/loans/"+id+"/"))).isEqualTo(json(get(b,"/api/loans/"+id+"/")));
+        assertThat(sources.loanSnapshot(user,id,LocalDate.of(2026,3,1))).isEqualTo(before);assertThat(revisions.current(user)).isEqualTo(revision);
+    }
 }

@@ -208,3 +208,5 @@ and original schedules. Unconfirmed cumulative periods and unproved start-balanc
 See [performance query periods, proof requirements and runtime limits](docs/PLAN_PERFORMANCE_QUERY.md).
 
 Current plan views: `GET /api/repayment-plans/` requires real version/budget sources for nonempty data. See [plan read behavior and limits](docs/PLAN_READ_API.md).
+
+`GET /api/loans/{loan_id}/` combines the public loan view, current plan and actual next stored due. See [detail read behavior](docs/LOAN_DETAIL_API.md).

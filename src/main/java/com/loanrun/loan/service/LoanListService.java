@@ -43,6 +43,13 @@ public class LoanListService {
             return new LoanList(result,balance,due,null,result.size());
         } catch(ArithmeticException|IllegalArgumentException ex) {throw ApiException.unavailable();}
     }
+    public LoanCreated one(long userId,long loanId) {
+        var today=LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul")));
+        var source=sources.visibleLoanSnapshot(userId,loanId,today);
+        if(source.loans().isEmpty())throw new ApiException(org.springframework.http.HttpStatus.NOT_FOUND,"LOAN_NOT_FOUND","대출을 찾을 수 없습니다.");
+        try{return view(source.loans().getFirst(),source,today).loan();}
+        catch(ArithmeticException|IllegalArgumentException e){throw ApiException.unavailable();}
+    }
 
     private View view(Loan l,Snapshot s,LocalDate today) {
         long savings=LoanSavingsCalculator.balance(l,s);

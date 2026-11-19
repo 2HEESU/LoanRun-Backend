@@ -33,6 +33,14 @@ public class LoanSourceRepository {
         owner(userId);
         return List.copyOf(jdbc.queryForList("SELECT id FROM loans WHERE user_id=:user AND status='ACTIVE' ORDER BY id",Map.of("user",userId),Long.class));
     }
+    public Loan visibleLoan(long userId,long loanId) {
+        owner(userId);if(loanId<=0)throw missing();
+        var rows=jdbc.query("SELECT * FROM loans WHERE user_id=:user AND id=:loan AND status<>'DELETED'",Map.of("user",userId,"loan",loanId),this::loanRow);
+        if(rows.isEmpty())throw missing();return rows.getFirst();
+    }
+    public Snapshot visibleLoanSnapshot(long userId,long loanId,LocalDate today) {
+        if(loanId<=0)throw missing();return snapshot(userId,today,List.of("ACTIVE","PAID"),loanId);
+    }
 
     /** Public rate history: one statement checks visibility and reads the complete original sequence. */
     public List<Rate> rateHistory(long userId,long loanId) {

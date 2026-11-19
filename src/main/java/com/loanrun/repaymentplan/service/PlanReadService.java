@@ -40,7 +40,7 @@ public class PlanReadService {
             long id;
             try {if(!loanId.matches("[0-9]+"))throw new IllegalArgumentException();id=Long.parseLong(loanId);if(id<=0)throw new IllegalArgumentException();}
             catch(IllegalArgumentException e){throw ApiException.validation("loan_id","대출 ID를 확인해 주세요.");}
-            if(loans.loan(user,id).storedStatus()==LoanStatus.DELETED)throw new ApiException(org.springframework.http.HttpStatus.NOT_FOUND,"LOAN_NOT_FOUND","대출을 찾을 수 없습니다.");ids=List.of(id);
+            loans.visibleLoan(user,id);ids=List.of(id);
         }
         var month=YearMonth.from(today);List<PlannedAmount> overrides=List.of();Long recurring=null;
         if(!ids.isEmpty()) {
