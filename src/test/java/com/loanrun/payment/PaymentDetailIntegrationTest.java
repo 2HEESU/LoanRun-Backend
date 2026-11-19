@@ -81,6 +81,153 @@ class PaymentDetailIntegrationTest {
             """));
     }
 
+    JsonNode list(HttpClient browser,String query)throws Exception {
+        var response=get(browser,"/api/payments/"+query);assertThat(response.statusCode()).isEqualTo(200);return json(response).path("data");
+    }
+    List<Long> ids(JsonNode data) {
+        var ids=new ArrayList<Long>();data.path("results").forEach(row->ids.add(row.path("payment_id").longValue()));return ids;
+    }
+
+    @Test void emptyListUsesExactDefaultsEnvelopeAndZeroQueryTotals()throws Exception {
+        var browser=browser();owner(browser);
+        var response=get(browser,"/api/payments/");assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(json(response)).isEqualTo(mapper.readTree("""
+            {"success":true,"code":"PAYMENT_LIST_SUCCESS","message":"상환 내역 목록 정보를 조회했습니다.",
+             "data":{"count":0,"page":1,"page_size":20,"next_page":null,"previous_page":null,"results":[],
+              "totals":{"amount":0,"principal_amount":0,"interest_amount":0,"extra_amount":0,"fee_amount":0,"savings_used_amount":0}}}
+            """));
+    }
+    @Test void pagesAreStableByActualDateAndIdRetainDuplicatesAndKeepFullFilterTotals()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner);
+        long oldest=payment(owner,loan,"2026-03-01","REGULAR",100,0,10,1,0);
+        long newer=payment(owner,loan,"2026-03-02","EXTRA",0,200,0,2,100);
+        long newest=payment(owner,loan,"2026-03-02","EXTRA",0,200,0,2,100);
+        var first=list(browser,"?page_size=2");assertThat(ids(first)).containsExactly(newest,newer);
+        assertThat(first.path("count").longValue()).isEqualTo(3);assertThat(first.path("page").intValue()).isEqualTo(1);
+        assertThat(first.path("next_page").intValue()).isEqualTo(2);assertThat(first.path("previous_page").isNull()).isTrue();
+        assertThat(first.path("totals")).isEqualTo(mapper.readTree("""
+            {"amount":515,"principal_amount":100,"interest_amount":10,"extra_amount":400,"fee_amount":5,"savings_used_amount":200}
+            """));
+        var second=list(browser,"?page=2&page_size=2");assertThat(ids(second)).containsExactly(oldest);
+        assertThat(second.path("next_page").isNull()).isTrue();assertThat(second.path("previous_page").intValue()).isEqualTo(1);
+        assertThat(second.path("totals")).isEqualTo(first.path("totals"));
+        var beyond=list(browser,"?page=4&page_size=2");assertThat(ids(beyond)).isEmpty();
+        assertThat(beyond.path("count").longValue()).isEqualTo(3);assertThat(beyond.path("totals")).isEqualTo(first.path("totals"));
+        assertThat(beyond.path("previous_page").intValue()).isEqualTo(3);assertThat(beyond.path("next_page").isNull()).isTrue();
+    }
+    @Test void pageLimitAppliesToPaymentsNotJoinedAllocationsAndListRowsMatchDetail()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner);
+        long later=due(owner,loan,"2026-03-25"),earlier=due(owner,loan,"2026-03-10");
+        var expected=new ArrayList<Long>();
+        for(int i=0;i<3;i++) {
+            long id=payment(owner,loan,"2026-03-27","REGULAR",500000,0,60000,100,0);
+            allocate(owner,loan,id,later,250000,30000,100);allocate(owner,loan,id,earlier,250000,30000,0);expected.addFirst(id);
+        }
+        var first=list(browser,"?page_size=2");assertThat(ids(first)).containsExactlyElementsOf(expected.subList(0,2));
+        assertThat(first.path("count").longValue()).isEqualTo(3);assertThat(first.path("totals").path("amount").longValue()).isEqualTo(1680300);
+        for(var row:first.path("results")) {
+            assertThat(row.path("due_allocations").size()).isEqualTo(2);
+            assertThat(row).isEqualTo(detail(browser,row.path("payment_id").longValue()));
+        }
+        var second=list(browser,"?page=2&page_size=2");assertThat(ids(second)).containsExactly(expected.getLast());
+        assertThat(second.path("results").get(0).path("due_allocations").size()).isEqualTo(2);
+    }
+    @Test void filtersUseInclusiveActualDatesAndCombineLoanAndPaymentType()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner),other=loan(owner);
+        payment(owner,loan,"2026-03-04","REGULAR",100,0,0,0,0);
+        long regular=payment(owner,loan,"2026-03-05","REGULAR",200,0,0,0,0);
+        long extra=payment(owner,loan,"2026-03-05","EXTRA",0,300,0,0,0);
+        payment(owner,loan,"2026-03-06","REGULAR",400,0,0,0,0);
+        payment(owner,other,"2026-03-05","REGULAR",900,0,0,0,0);
+        String sameDay="?loan_id="+loan+"&from=2026-03-05&to=2026-03-05";
+        var both=list(browser,sameDay);assertThat(ids(both)).containsExactly(extra,regular);
+        assertThat(both.path("totals").path("amount").longValue()).isEqualTo(500);
+        assertThat(ids(list(browser,sameDay+"&type=REGULAR"))).containsExactly(regular);
+        assertThat(ids(list(browser,sameDay+"&type=EXTRA"))).containsExactly(extra);
+        assertThat(ids(list(browser,"?loan_id="+loan+"&from=2026-03-06"))).hasSize(1);
+        assertThat(ids(list(browser,"?loan_id="+loan+"&to=2026-03-04"))).hasSize(1);
+        // Every created_at is March25; filtering March5 must still match paid_at, not created_at.
+    }
+    @Test void ownedEmptyLoanFilterReturnsEmptyWhileForeignAndMissingLoansReturnSame404()throws Exception {
+        var a=browser();var b=browser();long ownerA=owner(a),ownerB=owner(b),loanA=loan(ownerA),loanB=loan(ownerB);
+        payment(ownerB,loanB,"2026-03-05","EXTRA",0,900,0,0,0);
+        assertThat(list(a,"?loan_id="+loanA).path("count").longValue()).isZero();
+        assertThat(list(a,"").path("count").longValue()).isZero();
+        for(long id:List.of(loanB,Long.MAX_VALUE)) {
+            var response=get(a,"/api/payments/?loan_id="+id);assertThat(response.statusCode()).isEqualTo(404);
+            assertThat(json(response)).isEqualTo(mapper.readTree("""
+                {"success":false,"code":"LOAN_NOT_FOUND","message":"대출을 찾을 수 없습니다.","errors":{}}
+                """));
+        }
+        assertThat(list(b,"?loan_id="+loanB).path("totals").path("amount").longValue()).isEqualTo(900);
+    }
+    @Test void listIncludesPaidDeletedLoansAndPreservesSnapshotEditability()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner);
+        long earlier=payment(owner,loan,"2026-03-09","EXTRA",0,100,0,0,0);
+        long later=payment(owner,loan,"2026-03-11","EXTRA",0,200,0,0,0);
+        jdbc.update("UPDATE loans SET snapshot_date='2026-03-10' WHERE user_id=? AND id=?",owner,loan);
+        for(String status:List.of("PAID","DELETED")) {
+            jdbc.update("UPDATE loans SET status=? WHERE user_id=? AND id=?",status,owner,loan);
+            for(String query:List.of("","?loan_id="+loan)) {
+                var data=list(browser,query);assertThat(ids(data)).containsExactly(later,earlier);
+                assertThat(data.path("results").get(0).path("editable").booleanValue()).isTrue();
+                assertThat(data.path("results").get(1).path("editable").booleanValue()).isFalse();
+            }
+        }
+    }
+    @Test void invalidDateValuesAndReverseRangeUseExactDateRangeError()throws Exception {
+        var browser=browser();owner(browser);
+        for(String query:List.of("from=2026-02-30","to=2026-13-01","from=2026-3-01","from=0000-01-01","from=",
+            "from=2026-03-06&to=2026-03-05","to=not-a-date")) {
+            var response=get(browser,"/api/payments/?"+query);assertThat(response.statusCode()).as(query).isEqualTo(400);
+            assertThat(json(response)).isEqualTo(mapper.readTree("""
+                {"success":false,"code":"INVALID_DATE_RANGE","message":"조회 기간을 확인해 주세요.","errors":{}}
+                """));
+        }
+    }
+    @Test void invalidPaginationIdsAndEnumsUseCommonValidationWithoutChangingRevision()throws Exception {
+        var browser=browser();long owner=owner(browser);var before=jdbc.queryForMap("SELECT revision,updated_at FROM demo_users WHERE id=?",owner);
+        for(String query:List.of("page=0","page=-1","page=1.5","page=1e2","page=","page=2147483648","page_size=0",
+            "page_size=101","page_size=abc","loan_id=0","loan_id=-1","loan_id=1.5","loan_id=9223372036854775808","type=regular","type=","type=UNKNOWN")) {
+            var response=get(browser,"/api/payments/?"+query);assertThat(response.statusCode()).as(query).isEqualTo(400);
+            assertThat(json(response).path("code").asText()).isEqualTo("VALIDATION_ERROR");
+            assertThat(json(response).has("data")).isFalse();assertThat(json(response).has("errors")).isTrue();
+        }
+        assertThat(jdbc.queryForMap("SELECT revision,updated_at FROM demo_users WHERE id=?",owner)).isEqualTo(before);
+    }
+    @Test void defaultAndMaximumPageSizesAndLargeOffsetsHaveNoTruncationOrIntegerOverflow()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner);
+        for(int i=0;i<21;i++)payment(owner,loan,"2026-03-25","EXTRA",0,100,0,0,0);
+        var defaults=list(browser,"");assertThat(ids(defaults)).hasSize(20);assertThat(defaults.path("next_page").intValue()).isEqualTo(2);
+        assertThat(ids(list(browser,"?page_size=100"))).hasSize(21);
+        var large=list(browser,"?page=2147483647&page_size=100");assertThat(ids(large)).isEmpty();
+        assertThat(large.path("count").longValue()).isEqualTo(21);assertThat(large.path("previous_page").intValue()).isEqualTo(2147483646);
+        assertThat(large.path("next_page").isNull()).isTrue();
+    }
+    @Test void listTotalsUseLongAndRefuseOverflowInsteadOfWrappingOrReturningPartialSums()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner);
+        jdbc.update("UPDATE loans SET original_principal=12000000000,remaining_principal=12000000000 WHERE id=?",loan);
+        for(int i=0;i<2;i++)payment(owner,loan,"2026-03-25","REGULAR",2000000000L,0,0,0,0);
+        assertThat(list(browser,"").path("totals").path("principal_amount").longValue()).isEqualTo(4000000000L);
+        for(int i=0;i<2;i++)payment(owner,loan,"2026-03-26","REGULAR",0,0,Long.MAX_VALUE-1,0,0);
+        var response=get(browser,"/api/payments/");assertThat(response.statusCode()).isEqualTo(503);
+        assertThat(json(response).path("code").asText()).isEqualTo("SERVICE_UNAVAILABLE");assertThat(json(response).has("data")).isFalse();
+    }
+    @Test void listIsReadOnlyKeepsSourceCollectionsImmutableAndRequiresFinalSlash()throws Exception {
+        var browser=browser();long owner=owner(browser),loan=loan(owner),payment=payment(owner,loan,"2026-03-25","REGULAR",100,0,10,0,0);
+        long due=due(owner,loan,"2026-03-25");allocate(owner,loan,payment,due,100,10,0);
+        var userBefore=jdbc.queryForMap("SELECT revision,updated_at FROM demo_users WHERE id=?",owner);
+        var paymentBefore=jdbc.queryForMap("SELECT * FROM payments WHERE id=?",payment);
+        var allocationBefore=jdbc.queryForList("SELECT * FROM payment_allocations WHERE payment_id=?",payment);
+        var first=list(browser,"");assertThat(list(browser,"")).isEqualTo(first);
+        assertThat(jdbc.queryForMap("SELECT revision,updated_at FROM demo_users WHERE id=?",owner)).isEqualTo(userBefore);
+        assertThat(jdbc.queryForMap("SELECT * FROM payments WHERE id=?",payment)).isEqualTo(paymentBefore);
+        assertThat(jdbc.queryForList("SELECT * FROM payment_allocations WHERE payment_id=?",payment)).isEqualTo(allocationBefore);
+        var source=payments.list(owner,new com.loanrun.payment.read.PaymentListFilter(null,null,null,null,1,20));
+        assertThatThrownBy(()->source.records().clear()).isInstanceOf(UnsupportedOperationException.class);
+        assertThat(get(browser,"/api/payments").statusCode()).isEqualTo(404);
+    }
+
     @Test void returnsExactStoredAmountsAllocationAndKstTimestampWithoutOtherRuntimePorts()throws Exception {
         var browser=browser();long owner=owner(browser),loan=loan(owner);
         long payment=payment(owner,loan,"2026-03-25","REGULAR",250000,100000,30000,100,200000);

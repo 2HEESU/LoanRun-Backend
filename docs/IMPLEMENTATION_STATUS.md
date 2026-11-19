@@ -94,3 +94,16 @@ Team 1 now has four HTTP operations implemented (#13, #14, #18, #28); #13 still 
 budget provider. The remaining 20 Team 1 operations and financial query-port/budget integration are
 pending. This does not implement payment writes, frontend integration or deployment. Test results are
 recorded in the feature PR.
+
+## Follow-up: payment list (Issue #91)
+
+Payment-detail PR #90 was verified independently complete with CI66 success and merged at 462efcc.
+API #24 GET /api/payments/ reuses its item conversion and adds owner-scoped actual-date/type/loan
+filters, stable paid_at/id descending pagination and full-filter count/component totals. Paginating
+payment rows before allocation joins preserves all allocations without duplicated totals or shortened
+pages. PAID/DELETED history is retained; foreign/missing loan filters return 404. Both reads require
+no budget provider and introduce no runtime placeholder, migration, shared contract or Team 2 change.
+Team 1 now has five HTTP operations implemented (#13, #14, #18, #24, #28); #13 still awaits real budget
+recalculation. The other 19 operations, financial query projections and budget integration are pending
+as separate features, not blockers to merging these completed read APIs. Frontend/deployment remain
+unverified. Local and CI results are recorded in the feature PR.
