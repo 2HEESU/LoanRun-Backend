@@ -59,4 +59,26 @@ class SavingCreateUnavailableTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM idempotency_records WHERE user_id=?",Long.class,user)).isZero();
         assertThat(jdbc.queryForObject("SELECT revision FROM demo_users WHERE id=?",Long.class,user)).isZero();
     }
+    @Test void updateWithoutBudgetFailsAtomicallyWhileNoChangeSucceedsWithoutInvalidation()throws Exception {
+        assertThat(budgets.getIfAvailable()).isNull();
+        var browser=HttpClient.newBuilder().cookieHandler(new CookieManager(null,CookiePolicy.ACCEPT_ALL)).build();
+        var profile=browser.send(HttpRequest.newBuilder(URI.create("http://localhost:"+port+"/api/users/me/")).GET().build(),HttpResponse.BodyHandlers.ofString());
+        long user=mapper.readTree(profile.body()).path("data").path("user_id").longValue();
+        var input=new LoanPreviewTest().body();input.put("repayment_method","BULLET");input.putNull("prepayment_policy");
+        long loan=new TransactionTemplate(transactions).execute(s->fixtureRepository.insert(new PreparedLoan(validator.validate(user,input),FeeMethod.UNKNOWN,null,null,1200000,List.of()),clock.instant()));
+        long saving=jdbc.queryForObject("INSERT INTO repayment_savings(user_id,loan_id,saved_at,amount,created_at) VALUES (?,?,'2026-03-01',100,CURRENT_TIMESTAMP) RETURNING id",Long.class,user,loan);
+        var uri=URI.create("http://localhost:"+port+"/api/repayment-savings/"+saving+"/");
+        var changed=browser.send(HttpRequest.newBuilder(uri).header("Origin","http://localhost:5173").header("Content-Type","application/json").header("Idempotency-Key","change")
+            .method("PATCH",HttpRequest.BodyPublishers.ofString("{\"amount\":200}")).build(),HttpResponse.BodyHandlers.ofString());
+        assertThat(changed.statusCode()).as(changed.body()).isEqualTo(503);
+        assertThat(jdbc.queryForObject("SELECT amount FROM repayment_savings WHERE id=?",Long.class,saving)).isEqualTo(100);
+        assertThat(jdbc.queryForObject("SELECT revision FROM demo_users WHERE id=?",Long.class,user)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM idempotency_records WHERE user_id=?",Long.class,user)).isZero();
+        var unchanged=browser.send(HttpRequest.newBuilder(uri).header("Origin","http://localhost:5173").header("Content-Type","application/json").header("Idempotency-Key","no-change")
+            .method("PATCH",HttpRequest.BodyPublishers.ofString("{}")).build(),HttpResponse.BodyHandlers.ofString());
+        assertThat(unchanged.statusCode()).as(unchanged.body()).isEqualTo(200);
+        assertThat(mapper.readTree(unchanged.body()).path("data").path("report_stale").booleanValue()).isFalse();
+        assertThat(jdbc.queryForObject("SELECT revision FROM demo_users WHERE id=?",Long.class,user)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM idempotency_records WHERE user_id=?",Long.class,user)).isEqualTo(1);
+    }
 }

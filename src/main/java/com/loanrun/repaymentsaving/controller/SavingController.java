@@ -5,6 +5,7 @@ import com.loanrun.common.contract.CurrentUserProvider;
 import com.loanrun.repaymentsaving.dto.SavingList;
 import com.loanrun.repaymentsaving.service.SavingListService;
 import com.loanrun.repaymentsaving.service.SavingCreateService;
+import com.loanrun.repaymentsaving.service.SavingUpdateService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.MultiValueMap;
@@ -16,7 +17,13 @@ public class SavingController {
     private final CurrentUserProvider users;
     private final SavingListService savings;
     private final SavingCreateService creates;
-    public SavingController(CurrentUserProvider users,SavingListService savings,SavingCreateService creates){this.users=users;this.savings=savings;this.creates=creates;}
+    private final SavingUpdateService updates;
+    public SavingController(CurrentUserProvider users,SavingListService savings,SavingCreateService creates,SavingUpdateService updates){this.users=users;this.savings=savings;this.creates=creates;this.updates=updates;}
+    @PatchMapping("/{saving_id}/")
+    public ResponseEntity<JsonNode> update(@PathVariable("saving_id") long savingId,@RequestBody JsonNode body,@RequestHeader(value="Idempotency-Key",required=false) String key) {
+        var result=updates.update(users.currentUserId(),savingId,body,key);
+        return ResponseEntity.status(result.status()).body(result.body());
+    }
     @PostMapping("/")
     public ResponseEntity<JsonNode> create(@RequestBody JsonNode body,@RequestHeader(value="Idempotency-Key",required=false) String key) {
         var result=creates.create(users.currentUserId(),body,key);
