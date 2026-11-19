@@ -24,11 +24,21 @@ class ExplanationClientTest {
     @Test void structuredOutputAcceptsOnlyExplanationStringsAndSendsNoIdentityFields()throws Exception{
         var builder=RestClient.builder().baseUrl("https://api.openai.com/v1");var server=MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo("https://api.openai.com/v1/responses")).andExpect(jsonPath("$.store").value(false)).andExpect(jsonPath("$.text.format.strict").value(true))
+            .andExpect(jsonPath("$.reasoning").doesNotExist())
             .andExpect(jsonPath("$.text.format.type").value("json_schema")).andExpect(header("Authorization","Bearer test-token"))
             .andExpect(request->{String json=((org.springframework.mock.http.client.MockClientHttpRequest)request).getBodyAsString();assertThat(json).doesNotContain("user_id","email","institution_id","product_name");})
             .andRespond(withSuccess(response("현재 입력한 계획을 확인해 주세요.","실제 기록을 확인해 주세요."),MediaType.APPLICATION_JSON));
         var result=new ExplanationClient(builder.build(),mapper,true,"test-token","configured-fixture-model").explain(facts);
         assertThat(result.source()).isEqualTo("MODEL");assertThat(result.summary()).isEqualTo("현재 입력한 계획을 확인해 주세요.");server.verify();
+    }
+    @Test void lunaUsesNoReasoningWithinTheExistingOutputBudgetAndStrictExplanationSchema()throws Exception{
+        var builder=RestClient.builder().baseUrl("https://api.openai.com/v1");var server=MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://api.openai.com/v1/responses"))
+            .andExpect(jsonPath("$.model").value("gpt-6-luna")).andExpect(jsonPath("$.reasoning.effort").value("none"))
+            .andExpect(jsonPath("$.max_output_tokens").value(500)).andExpect(jsonPath("$.store").value(false))
+            .andExpect(jsonPath("$.text.format.type").value("json_schema")).andExpect(jsonPath("$.text.format.strict").value(true))
+            .andRespond(withSuccess(response("현재 입력한 계획을 확인해 주세요.","실제 기록을 확인해 주세요."),MediaType.APPLICATION_JSON));
+        assertThat(new ExplanationClient(builder.build(),mapper,true,"test-token","gpt-6-luna").explain(facts).source()).isEqualTo("MODEL");server.verify();
     }
     @Test void newNumbersOrFailedResponsesUseTheDeterministicFallback()throws Exception{
         for(String response: new String[]{response("100만원을 갚으세요.","확인해 주세요."),"{\"status\":\"incomplete\",\"output\":[]}","{\"status\":\"completed\",\"output\":[{\"content\":[{\"type\":\"refusal\"}]}]}"}){
