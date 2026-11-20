@@ -18,7 +18,8 @@ SELECT 'NO_FLYWAY_HISTORY: identify the DB/schema before migration' AS audit_not
 SELECT table_name FROM information_schema.tables
 WHERE table_schema=:'audit_schema' AND table_name IN
 ('demo_users','loans','finance_profiles','monthly_budgets','monthly_allocations',
- 'report_jobs','strategy_candidates','repayment_plan_versions','overall_strategy_versions') ORDER BY table_name;
+ 'report_jobs','strategy_candidates','repayment_plan_versions','overall_strategy_versions',
+ 'plan_application_events','payment_due_archives') ORDER BY table_name;
 SELECT to_regclass(format('%I.loans', :'audit_schema')) IS NOT NULL AS has_loans,
        to_regclass(format('%I.monthly_allocations', :'audit_schema')) IS NOT NULL AS has_allocations,
        to_regclass(format('%I.monthly_budgets', :'audit_schema')) IS NOT NULL AS has_budgets,

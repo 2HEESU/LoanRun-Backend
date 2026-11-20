@@ -14,6 +14,7 @@ allprojects {
             useJUnitPlatform()
             systemProperty 'auditRoot', rootProject.file('.tools/migration-audit').absolutePath
             systemProperty 'auditInspect', rootProject.file('docs/ops/inspect_flyway.sql').absolutePath
+            systemProperty 'auditProposals', rootProject.file('docs/sql').absolutePath
             testLogging { showStandardStreams = true; events 'passed', 'failed' }
         }
     }

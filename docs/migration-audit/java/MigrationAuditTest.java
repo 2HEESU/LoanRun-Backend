@@ -114,4 +114,62 @@ class MigrationAuditTest {
         inspect("missing_schema");
         System.out.println("AUDIT missing-middle-script/checksum mismatch: blocked as expected; no repair/history deletion");
     }
+
+    /** Test-only V4 candidate, not a release migration or an instruction to renumber an applied script. */
+    Path candidateBundle(int... versions)throws Exception {
+        var dir=files(versions);var sql=new StringBuilder();
+        for(var name:List.of("repayment_plan_versions_proposal.sql","plan_application_events_proposal.sql","payment_due_archives_proposal.sql"))
+            sql.append(Files.readString(Path.of(System.getProperty("auditProposals"),name))).append('\n');
+        Files.writeString(dir.resolve("V4__team1_plan_ledger_candidate.sql"),sql);return dir;
+    }
+    void seedLoan(String schema) {
+        jdbc().update("""
+            INSERT INTO %s.loans(user_id,institution_name,product_name,loan_form,loan_type,repayment_method,
+                original_principal,remaining_principal,annual_rate,rate_type,start_date,maturity_date,
+                payment_day,next_due_date,grace_months,prepayment_policy,prepayment_fee_method,
+                initial_savings_balance,status,snapshot_date,snapshot_principal,initial_plan_snapshot,created_at,updated_at)
+            VALUES (1,'가상은행','감사용 대출','GENERAL','CREDIT','EQUAL_PAYMENT',12000000,12000000,6,'FIXED',
+                '2026-10-01','2027-11-25',25,'2026-11-25',0,'KEEP_MATURITY','NONE',0,'ACTIVE',
+                '2026-11-01',12000000,'{"version":1}',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+            """.formatted(schema));
+        jdbc().update("INSERT INTO "+schema+".loan_balance_snapshots(user_id,loan_id,effective_date,amount,reason,created_at) VALUES (1,1,'2026-11-01',12000000,'REGISTRATION',CURRENT_TIMESTAMP)");
+        jdbc().update("INSERT INTO "+schema+".loan_rate_histories(user_id,loan_id,effective_date,annual_rate,created_at) VALUES (1,1,'2026-11-01',6,CURRENT_TIMESTAMP)");
+    }
+    void assertCandidateTables(String schema) {
+        assertThat(jdbc().queryForList("SELECT table_name FROM information_schema.tables WHERE table_schema=?",String.class,schema))
+            .contains("repayment_plan_versions","plan_application_events","payment_due_archives");
+    }
+    @Test void candidateFreshV1ThroughV5InstallsAllThreeProposalsAndRestartsNormally()throws Exception {
+        var dir=candidateBundle(1,2,3,5);var f=flyway("candidate_fresh",dir,false);
+        assertThat(f.migrate().migrationsExecuted).isEqualTo(5);f.validate();
+        assertThat(history("candidate_fresh").stream().map(r->r.get("version")).toList()).containsExactly("1","2","3","4","5");
+        assertCandidateTables("candidate_fresh");assertThat(f.migrate().migrationsExecuted).isZero();
+        inspect("candidate_fresh");
+        System.out.println("AUDIT candidate fresh 1/2/3/4/5: PASS; three unchanged proposals combined only in temporary test migration");
+    }
+    @Test void candidateAfterV5RequiresOneOffOrderingAndPreservesAllExistingSources()throws Exception {
+        String schema="candidate_late";flyway(schema,files(1,2,3,5),false).migrate();seed(schema,true,true);seedLoan(schema);
+        var before=business(schema);var oldHistory=history(schema);var dir=candidateBundle(1,2,3,5);
+        assertThatThrownBy(()->flyway(schema,dir,false).migrate()).isInstanceOf(FlywayException.class);
+        assertThat(business(schema)).isEqualTo(before);assertThat(history(schema)).isEqualTo(oldHistory);
+        var once=flyway(schema,dir,true);assertThat(once.migrate().migrationsExecuted).isEqualTo(1);once.validate();
+        assertThat(Arrays.stream(once.info().all()).filter(i->i.getVersion()!=null&&i.getVersion().toString().equals("4")).findFirst().orElseThrow().getState()).isEqualTo(MigrationState.OUT_OF_ORDER);
+        var after=business(schema);before.forEach((table,rows)->assertThat(after.get(table)).as(table).isEqualTo(rows));
+        assertThat(history(schema).stream().filter(r->!r.get("version").equals("4")).toList()).isEqualTo(oldHistory);
+        assertCandidateTables(schema);var normal=flyway(schema,dir,false);normal.validate();assertThat(normal.migrate().migrationsExecuted).isZero();
+        flyway("candidate_ordered",dir,false).migrate();assertThat(shape(schema)).isEqualTo(shape("candidate_ordered"));
+        inspect(schema);
+        System.out.println("AUDIT candidate V4 after V5: default BLOCKED; one-off PASS; existing users/budget/report/loan sources and checksums unchanged; schema equals ordered install; normal restart PASS");
+    }
+    @Test void candidateManualTableConflictRollsBackWholeMigrationWithoutRepairOrHistoryChanges()throws Exception {
+        String schema="candidate_conflict";flyway(schema,files(1,2,3),false).migrate();seed(schema,true,false);seedLoan(schema);
+        // A manually created table is not proof that the versioned migration has been applied.
+        jdbc().execute("CREATE TABLE "+schema+".payment_due_archives(marker TEXT)");
+        jdbc().update("INSERT INTO "+schema+".payment_due_archives VALUES ('preserve-original')");
+        var before=business(schema);var oldHistory=history(schema);var candidate=candidateBundle(1,2,3);
+        assertThatThrownBy(()->flyway(schema,candidate,false).migrate()).isInstanceOf(FlywayException.class);
+        assertThat(business(schema)).isEqualTo(before);assertThat(history(schema)).isEqualTo(oldHistory);
+        assertThat(jdbc().queryForObject("SELECT count(*) FROM information_schema.tables WHERE table_schema=? AND table_name IN ('repayment_plan_versions','plan_application_events')",Integer.class,schema)).isZero();
+        System.out.println("AUDIT candidate manual table conflict: BLOCKED; all candidate DDL rolled back; original rows/history unchanged; no IF NOT EXISTS/repair/clean workaround");
+    }
 }
