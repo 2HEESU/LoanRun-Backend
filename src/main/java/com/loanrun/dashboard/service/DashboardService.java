@@ -20,10 +20,12 @@ public class DashboardService {
             var facts=captured.risk();
             long basic=Math.subtractExact(Math.addExact(facts.due().scheduledCash(),facts.due().previousOutstandingCash()),facts.due().savingsUsedForDue());
             var probe=rates.probe(facts);
+            Long discretionary=facts.finance().actualDiscretionaryExpenses()!=null?facts.finance().actualDiscretionaryExpenses():facts.finance().discretionaryExpenses();
             var assessment=RiskMath.assess(facts.finance().planningIncome(),facts.capacity().availableCash(),basic,
-                facts.finance().actualDiscretionaryExpenses(),facts.finance().discretionaryLimit(),facts.variableExposurePct(),
+                discretionary,facts.finance().discretionaryLimit(),facts.variableExposurePct(),
                 probe.hasVariableLoans(),probe.available(BigDecimal.ONE),facts.monthlyTarget(),!facts.loans().isEmpty());
-            risk=new Risk(assessment.level(),facts.capacity().availableCash(),false,assessment.score());
+            var safeLevel=assessment.level()!=null?assessment.level():com.loanrun.risk.dto.RiskDtos.Level.STABLE;
+            risk=new Risk(safeLevel,facts.capacity().availableCash(),false,assessment.score());
         }
         var summary=ledger.monthlySummary();
         var reportStatus=DashboardReportStatusPolicy.read(userId,captured.plan(),captured.report(),captured.revision(),clock);

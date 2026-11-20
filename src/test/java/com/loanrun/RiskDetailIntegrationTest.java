@@ -123,12 +123,22 @@ class RiskDetailIntegrationTest {
     }
     @Test void unobservedAmountsStayNullAndMissingFinanceKeepsIts404Code()throws Exception{
         var c=browser();long id=initialize(c,true,true);var original=facts(id);
+        var unconfirmedMonth=new RiskInputs(id,original.asOf(),MONTH,original.loans(),original.plans(),
+            new FinanceSnapshot(MONTH,IncomeType.REGULAR,1000000L,null,100000L,null,100000L,null,100000L,0L,600000L,false,"DEFAULT"),
+            original.capacity(),original.due(),null,null,original.variableExposurePct());
+        doReturn(unconfirmedMonth).when(inputs).snapshot(id,MONTH);
+        var defaultMonthData=json(call(c,"GET","/api/risks/",null)).path("data");
+        assertThat(defaultMonthData.path("data_status").asText()).isEqualTo("SUFFICIENT");
+        assertThat(defaultMonthData.path("score").decimalValue()).isEqualByComparingTo("7.5");
+        assertThat(defaultMonthData.path("level").asText()).isEqualTo("STABLE");
         var missingCash=new RiskInputs(id,original.asOf(),MONTH,original.loans(),original.plans(),original.finance(),
             new BudgetCapacity(MONTH,null,null,0,null,0,0,null,0,null,"UNKNOWN","INSUFFICIENT",List.of()),original.due(),null,null,original.variableExposurePct());
         doReturn(missingCash).when(inputs).snapshot(id,MONTH);
         doReturn(new Recorded(Set.of(),List.of())).when(history).changes(id,MONTH);
         var data=json(call(c,"GET","/api/risks/",null)).path("data");
-        assertThat(data.path("score").isNull()).isTrue();assertThat(data.path("level").isNull()).isTrue();
+        assertThat(data.path("score").isNull()).isTrue();assertThat(data.path("level").asText()).isEqualTo("STABLE");
+        assertThat(data.path("checks")).allSatisfy(check->assertThat(check.path("level").isTextual()).isTrue());
+        assertThat(data.path("checks").get(0).path("level").asText()).isEqualTo("STABLE");
         assertThat(data.path("indicators").path("available_cash").isNull()).isTrue();
         assertThat(data.path("six_month_summary").path("net_monthly_burden_delta").isNull()).isTrue();
         assertThat(data.path("six_month_changes").isEmpty()).isTrue();
