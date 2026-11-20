@@ -105,7 +105,8 @@ Dashboard route: GET `/api/dashboard/`.
 
 Product lookup adds GET `/api/loan-products/options/` and GET `/api/loan-products/`.
 Public disclosure caching uses the FSS client and preserves the entire previous cache if refresh fails.
-`FSS_ENABLED=false` is the default; no startup HTTP calls occur. Enabling it schedules a 03:00 KST refresh using a server-only key.
+`FSS_ENABLED=false` is the default; no startup HTTP calls occur. Enabling `FSS_ENABLED=true` with `FSS_API_KEY`
+populates an empty DB cache once asynchronously after startup and schedules a 03:00 KST refresh.
 An uninitialized supported catalog returns 503; a genuinely successful empty snapshot returns an empty list.
 Unsupported disclosure categories still allow manual entry. Product data never overrides a borrower's manual contract rate/fee.
 Further domain endpoints are tracked locally as pending until implemented and tested.

@@ -53,8 +53,10 @@ docker compose --env-file /opt/loanrun/production.env -f compose.production.yml 
 These are deployment commands, to run only after the target server, costs, TLS and migrations are confirmed.
 The env file is read by Compose; runtime configuration is passed explicitly to backend.
 `DEMO_MODE=true` enables the existing FREE/PRO demonstration switch; it defaults to false.
-FSS and OpenAI remain disabled in this initial deployment configuration. Enabling real integrations requires a separate
-reviewed runtime configuration after account/key readiness; no external keys are passed here.
+`RISK_HISTORY_ENABLED` defaults to `true`, while `FSS_ENABLED` and `OPENAI_ENABLED` default to `false` when unset
+in the host env file (`compose.production.yml` passes optional `FSS_API_KEY`, `OPENAI_API_KEY` and `OPENAI_MODEL`
+at runtime only; never bake secrets into images). When `FSS_ENABLED=true`, the backend performs a one-time
+asynchronous FSS catalog fetch on startup only if the DB cache is empty, in addition to the 03:00 KST refresh.
 
 Nginx preserves `/api/` paths and the browser Origin, redirects HTTP to the configured canonical HTTPS origin,
 and overwrites forwarded client IP headers. The backend trusts its private reverse proxy via Tomcat native forwarding;
