@@ -23,6 +23,6 @@ Six PG/HTTP storage/source tests verify exact frozen reads, FREE/foreign isolati
 versions, confirmed-month checks and actual-event/null semantics. Seven repository tests also cover the
 transactional invalidation marker. Source providers remain test-only where Team 1 integration is pending.
 
-The request table is a follow-up to the initial two-table SQL review. All SQL remains unnumbered under
-`docs/sql/` and is applied only in isolated test databases. Do not enable production history until migration
-version/order and actual owner-scoped source providers are agreed and integrated.
+The risk-history and assessment tables are formalized in `V6__risk_history_and_assessments.sql` (matching the
+reviewed proposal under `docs/sql/risk_history_proposal.sql`) and runtime risk history is enabled by default (`RISK_HISTORY_ENABLED=true`).
+Setting `RISK_HISTORY_ENABLED=false` disables the conditional providers.
