@@ -188,4 +188,36 @@ class PlanPreviewIntegrationTest {
         var d=ok(b,direct(bullet,"\"mode\":\"MATURITY\",\"planned_saving_amount\":10"));assertThat(d.path("estimated_payoff_date").isNull()).isTrue();
         for(var p:d.path("proposed_plans"))if(p.path("loan_id").longValue()==installment)assertThat(p.path("projected_payoff_date").asText()).isEqualTo("2026-12-25");else assertThat(p.path("projected_payoff_date").isNull()).isTrue();
     }
+    @Test void bulletSupportsPreferenceAndMonthlyAmountAndRejectsExtraCashField()throws Exception {
+        var b=browser();long user=owner(b),id=loan(user,true,true);
+        var pref=ok(b,direct(id,"\"mode\":\"PREFERENCE\",\"preference\":\"BALANCED\""));
+        assertThat(pref.path("proposed_allocations").get(0).path("allocation_type").asText()).isEqualTo("REPAYMENT_SAVING");
+        assertThat(pref.path("proposed_allocations").get(0).path("amount").longValue()).isEqualTo(1000000);
+        assertThat(pref.path("proposed_plans").get(0).path("extra_monthly_payment").longValue()).isZero();
+        assertThat(pref.path("proposed_plans").get(0).path("planned_saving_amount").longValue()).isEqualTo(1000000);
+        assertThat(ok(b,direct(id,"\"mode\":\"PREFERENCE\",\"preference\":\"STABLE\"")).path("proposed_allocations").get(0).path("amount").longValue()).isZero();
+        assertThat(preview(b,direct(id,"\"mode\":\"PREFERENCE\",\"preference\":\"BALANCED\",\"extra_monthly_payment\":100000")).statusCode()).isEqualTo(400);
+
+        var withSaving=ok(b,direct(id,"\"mode\":\"MONTHLY_AMOUNT\",\"monthly_amount\":1060000,\"planned_saving_amount\":1000000"));
+        assertThat(withSaving.path("proposed_allocations").get(0).path("amount").longValue()).isEqualTo(1000000);
+        assertThat(withSaving.path("proposed_plans").get(0).path("planned_saving_amount").longValue()).isEqualTo(1000000);
+
+        var monthlyOnly=ok(b,direct(id,"\"mode\":\"MONTHLY_AMOUNT\",\"monthly_amount\":560000"));
+        assertThat(monthlyOnly.path("proposed_allocations").get(0).path("amount").longValue()).isEqualTo(500000);
+        assertThat(monthlyOnly.path("proposed_plans").get(0).path("planned_saving_amount").longValue()).isEqualTo(500000);
+
+        var tooLow=preview(b,direct(id,"\"mode\":\"MONTHLY_AMOUNT\",\"monthly_amount\":59999"));
+        assertThat(tooLow.statusCode()).isEqualTo(400);assertThat(json(tooLow).path("code").asText()).isEqualTo("PAYOFF_NOT_FEASIBLE");
+    }
+    @Test void multiLoanPreferenceAutoAllocatesWhenExplicitAmountsAreOmitted()throws Exception {
+        var b=browser();long user=owner(b),first=loan(user,false,true),second=loan(user,true,true);
+        String twoFast="{\"plans\":[{\"loan_id\":"+first+",\"mode\":\"PREFERENCE\",\"preference\":\"FAST\"},{\"loan_id\":"+second+",\"mode\":\"PREFERENCE\",\"preference\":\"FAST\"}]}";
+        var d=ok(b,twoFast);long sum=0;for(var a:d.path("proposed_allocations"))sum+=a.path("amount").longValue();
+        assertThat(sum).isEqualTo(1600000);
+
+        String mixed="{\"plans\":[{\"loan_id\":"+first+",\"mode\":\"PREFERENCE\",\"preference\":\"FAST\"},{\"loan_id\":"+second+",\"mode\":\"PREFERENCE\",\"preference\":\"STABLE\"}]}";
+        var m=ok(b,mixed);
+        for(var a:m.path("proposed_allocations"))if(a.path("loan_id").longValue()==first)assertThat(a.path("amount").longValue()).isEqualTo(1600000);
+            else assertThat(a.path("amount").longValue()).isZero();
+    }
 }

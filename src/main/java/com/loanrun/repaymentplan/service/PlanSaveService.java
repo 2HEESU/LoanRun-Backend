@@ -39,8 +39,9 @@ public class PlanSaveService {
         for(var key:List.of("plans","allocations"))for(var row:data.path(key))if(row.isObject())((ObjectNode)row).putNull("priority");return new StoredResponse(response.status(),body);
     }
     private StoredResponse store(long user,PlanType access,JsonNode body) {
-        JsonPatch.fields(body,"plans","effective_date","report_id","strategy_code","strategy_version","preview_version");String token=JsonPatch.text(body,"preview_version",false,128);
-        ObjectNode input=body.deepCopy();input.remove("preview_version");var calculated=previews.preview(user,access,input);
+        JsonPatch.fields(body,"plans","effective_date","report_id","strategy_code","strategy_version","preview_version","data_revision");String token=JsonPatch.text(body,"preview_version",false,128);
+        if(body.has("data_revision"))JsonPatch.text(body,"data_revision",true,128);
+        ObjectNode input=body.deepCopy();input.remove("preview_version");input.remove("data_revision");var calculated=previews.preview(user,access,input);
         if(!java.security.MessageDigest.isEqual(token.getBytes(java.nio.charset.StandardCharsets.UTF_8),calculated.path("preview_version").asText().getBytes(java.nio.charset.StandardCharsets.UTF_8)))throw stale();
         var budget=budgets.getIfAvailable();if(budget==null)throw ApiException.unavailable();long revision=revisions.current(user);boolean strategy=input.has("report_id");
         var state=applications.latest(user);boolean exists=state.map(PlanApplicationRepository.State::exists).orElse(false)||(strategy&&calculated.path("proposed_plans").size()>1);
