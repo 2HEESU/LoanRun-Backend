@@ -43,6 +43,18 @@ public class SavedPlanPortService implements PlanQueryPort,RegistrationPlanFallb
             owner(user);Objects.requireNonNull(asOf);var now=clock.instant();var today=now.atZone(KST).toLocalDate();
             if(asOf.isAfter(today))throw ApiException.unavailable();
             var ids=asOf.equals(today)?loans.activeLoanIds(user):loanQueries.activeLoans(user,asOf).stream().map(LoanTerms::loanId).toList();
+            return currentForIds(user,asOf,now,today,ids);
+        });
+    }
+    @Override public PlanSnapshot currentPlan(long user,long id,LocalDate asOf) {
+        return read(()->{
+            owner(user);Objects.requireNonNull(asOf);var now=clock.instant();var today=now.atZone(KST).toLocalDate();
+            var loan=loans.loan(user,id);
+            if(!asOf.equals(today)||loan.storedStatus()!=LoanStatus.ACTIVE)throw ApiException.unavailable();
+            return currentForIds(user,asOf,now,today,List.of(id)).getFirst();
+        });
+    }
+    private List<PlanSnapshot> currentForIds(long user,LocalDate asOf,Instant now,LocalDate today,List<Long> ids) {
             var result=new ArrayList<PlanSnapshot>();
             for(long id:ids) {
                 var loan=loans.loan(user,id);var forecast=asOf.equals(today)?payoffs.current(user,id):null;
@@ -60,7 +72,6 @@ public class SavedPlanPortService implements PlanQueryPort,RegistrationPlanFallb
                 result.add(new PlanSnapshot(id,s.configured(),s.targetPayoffDate(),projected,s.monthlyExtraCash(),s.monthlySaving(),required,s.mode(),s.preference(),s.effectiveDate(),s.version()));
             }
             return List.copyOf(result);
-        });
     }
     @Override public List<PlannedAmount> plannedAllocations(long user,YearMonth month) {
         return read(()->{

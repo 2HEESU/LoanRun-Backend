@@ -190,10 +190,10 @@ class PlanVersionRepositoryTest {
         assertThatThrownBy(()->new Draft(l,Mode.PREFERENCE,null,null,date(12),0,1,date(3),revisions.current(u),t,new Inputs(null,null,1L),null)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(()->new StrategySource(0,"v","CODE")).isInstanceOf(IllegalArgumentException.class);
     }
-    @Test void proposalDoesNotActivateFlywayAndRuntimePortRequiresActualApplicationStorage() {
-        assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank",String.class)).contains("1","2").doesNotContain("4");
+    @Test void activeV4ProvidesRealApplicationStorageToTheRuntimePort() {
+        assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank",String.class)).contains("1","2","3","3.1","4");
         assertThat(publicPlans.getIfAvailable()).isInstanceOf(com.loanrun.repaymentplan.service.SavedPlanPortService.class);
-        assertThatThrownBy(()->publicPlans.getObject().overallState(user())).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.code()).isEqualTo("SERVICE_UNAVAILABLE"));
+        assertThat(publicPlans.getObject().overallState(user()).exists()).isFalse();
     }
     @Test void registrationUsesOriginalBalanceAndDoesNotInventMissingHistoricalTerms()throws Exception {
         long u=user(),l=loan(u,false);jdbc.update("UPDATE loans SET remaining_principal=9000000,snapshot_principal=9000000,snapshot_date='2026-03-02' WHERE id=?",l);

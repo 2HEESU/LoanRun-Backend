@@ -33,7 +33,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.*;
 
 @Testcontainers
-@SpringBootTest
+@SpringBootTest(properties="spring.flyway.target=3.1")
 @Import(PlanObservationQueryIntegrationTest.Config.class)
 class PlanObservationQueryIntegrationTest {
     @Container static final PostgreSQLContainer<?> DB=new PostgreSQLContainer<>("postgres:16.16-bookworm");

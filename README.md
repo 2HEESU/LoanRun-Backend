@@ -186,14 +186,15 @@ regular-due states using the KST business date. They also drive confirmation eli
 [stored due state boundaries and coverage](docs/STORED_DUE_STATES.md). They do not generate schedules,
 install LoanQueryPort or assert that missing due rows mean zero debt.
 
-The owner-scoped V2 source read repository in `loan/read` preserves original loan/history/ledger facts.
-See [source query semantics and projection limits](docs/LOAN_SOURCE_QUERIES.md). It does not yet implement
-LoanQueryPort or enable real budget/CSV/risk integration.
+The owner-scoped V2 source read repository in `loan/read` preserves original loan/history/ledger facts and
+implements `LoanQueryPort`. See [source query semantics and projection limits](docs/LOAN_SOURCE_QUERIES.md)
+and [the shared-port contract](docs/LOAN_QUERY_PORT.md).
 
 The real, pure `RepaymentEngine` implementation lives in `finance/engine`; Spring wiring is in `finance/config`.
 See [calculation behavior and limits](docs/REPAYMENT_ENGINE.md) and the
 [implementation audit](docs/IMPLEMENTATION_STATUS.md). The engine adds no HTTP routes or migrations.
-Loan/ledger/plan query implementations are still required before the CSV and risk APIs can use actual domain data.
+Loan, report-history and plan query adapters are installed; observation and remaining dashboard/performance
+providers keep their documented null/503 boundaries until their real sources are connected.
 
 Production must set `SPRING_PROFILES_ACTIVE=prod`, database credentials and exact `ALLOWED_ORIGINS`.
 Use an HTTPS reverse proxy and a private DB network; this local Compose file is not a production deployment.
@@ -227,12 +228,13 @@ Loan deletion: `DELETE /api/loans/{loan_id}/` archives the owner's loan as DELET
 Any actual payment blocks deletion with 409 LOAN_HAS_PAYMENTS. The key is optional; actual budget
 recalculation is required. See [loan deletion, preserved history and integration](docs/LOAN_DELETE.md).
 
-Individual plan version storage is prepared as an unnumbered SQL proposal and isolated repository tests.
-It preserves V2 registration version1 and appends later source versions; no runtime consumer or partial
-query port is installed. See [source version semantics and activation dependencies](docs/PLAN_VERSION_STORAGE.md).
+Flyway V4 provides immutable plan versions, application events and original due archives after V3.1.
+It preserves V2 registration version 1 and appends later versions. Existing database histories must be
+inspected before migration; see [migration review](docs/MIGRATION_V2_REVIEW.md).
 
-Internal plan source queries now combine V2 registration goals and version history by effective date
-and separate knowledge cutoff, preserving missing historical bases as null. No runtime API is rewired.
+Internal plan source queries combine V2 registration goals and V4 version history by effective date and
+separate knowledge cutoff, preserving missing historical bases as null. The shared plan query and presentation
+ports consume those sources without changing their public contract.
 See [plan source query boundaries](docs/PLAN_SOURCE_QUERY.md).
 
 Plan projection input selection distinguishes verified monthly principal/saving averages from saved cash goals.

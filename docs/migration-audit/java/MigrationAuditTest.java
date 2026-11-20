@@ -115,13 +115,21 @@ class MigrationAuditTest {
         System.out.println("AUDIT missing-middle-script/checksum mismatch: blocked as expected; no repair/history deletion");
     }
 
-    /** Test-only V4 candidate, not a release migration or an instruction to renumber an applied script. */
-    Path candidateBundle(int... versions)throws Exception {
-        var dir=files(versions);var sql=new StringBuilder();
-        for(var name:List.of("repayment_plan_versions_proposal.sql","plan_application_events_proposal.sql","payment_due_archives_proposal.sql"))
-            sql.append(Files.readString(Path.of(System.getProperty("auditProposals"),name))).append('\n');
-        Files.writeString(dir.resolve("V4__team1_plan_ledger_candidate.sql"),sql);return dir;
+    /** Copy the exact versioned runtime files into the isolated migration bundle. */
+    Path runtimeBundle(boolean includeV31,boolean includeV4,int... versions)throws Exception {
+        var dir=files(versions);
+        if(includeV31){
+            var v31=Path.of(System.getProperty("auditV31"));
+            Files.copy(v31,dir.resolve(v31.getFileName()));
+        }
+        if(includeV4){
+            var v4=Path.of(System.getProperty("auditV4"));
+            Files.copy(v4,dir.resolve(v4.getFileName()));
+        }
+        return dir;
     }
+    Path candidateBundle(boolean includeV31,int... versions)throws Exception {return runtimeBundle(includeV31,true,versions);}
+    Path candidateBundle(int... versions)throws Exception {return candidateBundle(false,versions);}
     void seedLoan(String schema) {
         jdbc().update("""
             INSERT INTO %s.loans(user_id,institution_name,product_name,loan_form,loan_type,repayment_method,
@@ -145,11 +153,15 @@ class MigrationAuditTest {
         assertThat(history("candidate_fresh").stream().map(r->r.get("version")).toList()).containsExactly("1","2","3","4","5");
         assertCandidateTables("candidate_fresh");assertThat(f.migrate().migrationsExecuted).isZero();
         inspect("candidate_fresh");
-        System.out.println("AUDIT candidate fresh 1/2/3/4/5: PASS; three unchanged proposals combined only in temporary test migration");
+        System.out.println("AUDIT candidate fresh 1/2/3/4/5: PASS; exact runtime V4 file tested in isolated schema");
     }
-    @Test void candidateAfterV5RequiresOneOffOrderingAndPreservesAllExistingSources()throws Exception {
-        String schema="candidate_late";flyway(schema,files(1,2,3,5),false).migrate();seed(schema,true,true);seedLoan(schema);
-        var before=business(schema);var oldHistory=history(schema);var dir=candidateBundle(1,2,3,5);
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void candidateAfterV5RequiresOneOffOrderingAndPreservesAllExistingSources(boolean includeV31)throws Exception {
+        String schema=includeV31?"candidate_late_catalog":"candidate_late";
+        var initial=runtimeBundle(includeV31,false,1,2,3,5);
+        flyway(schema,initial,false).migrate();seed(schema,true,true);seedLoan(schema);
+        if(includeV31)jdbc().update("INSERT INTO "+schema+".catalog_sync_state(id,last_success_at) VALUES (1,'2026-11-19T00:00:00Z')");
+        var before=business(schema);var oldHistory=history(schema);var dir=candidateBundle(includeV31,1,2,3,5);
         assertThatThrownBy(()->flyway(schema,dir,false).migrate()).isInstanceOf(FlywayException.class);
         assertThat(business(schema)).isEqualTo(before);assertThat(history(schema)).isEqualTo(oldHistory);
         var once=flyway(schema,dir,true);assertThat(once.migrate().migrationsExecuted).isEqualTo(1);once.validate();
@@ -157,9 +169,9 @@ class MigrationAuditTest {
         var after=business(schema);before.forEach((table,rows)->assertThat(after.get(table)).as(table).isEqualTo(rows));
         assertThat(history(schema).stream().filter(r->!r.get("version").equals("4")).toList()).isEqualTo(oldHistory);
         assertCandidateTables(schema);var normal=flyway(schema,dir,false);normal.validate();assertThat(normal.migrate().migrationsExecuted).isZero();
-        flyway("candidate_ordered",dir,false).migrate();assertThat(shape(schema)).isEqualTo(shape("candidate_ordered"));
+        String ordered=schema+"_ordered";flyway(ordered,dir,false).migrate();assertThat(shape(schema)).isEqualTo(shape(ordered));
         inspect(schema);
-        System.out.println("AUDIT candidate V4 after V5: default BLOCKED; one-off PASS; existing users/budget/report/loan sources and checksums unchanged; schema equals ordered install; normal restart PASS");
+        System.out.println("AUDIT actual V4 after V5 (V3.1="+includeV31+"): default BLOCKED; one-off PASS; existing users/budget/report/loan/catalog sources and checksums unchanged; schema equals ordered install; normal restart PASS");
     }
     @Test void candidateManualTableConflictRollsBackWholeMigrationWithoutRepairOrHistoryChanges()throws Exception {
         String schema="candidate_conflict";flyway(schema,files(1,2,3),false).migrate();seed(schema,true,false);seedLoan(schema);
@@ -170,6 +182,6 @@ class MigrationAuditTest {
         assertThatThrownBy(()->flyway(schema,candidate,false).migrate()).isInstanceOf(FlywayException.class);
         assertThat(business(schema)).isEqualTo(before);assertThat(history(schema)).isEqualTo(oldHistory);
         assertThat(jdbc().queryForObject("SELECT count(*) FROM information_schema.tables WHERE table_schema=? AND table_name IN ('repayment_plan_versions','plan_application_events')",Integer.class,schema)).isZero();
-        System.out.println("AUDIT candidate manual table conflict: BLOCKED; all candidate DDL rolled back; original rows/history unchanged; no IF NOT EXISTS/repair/clean workaround");
+        System.out.println("AUDIT actual V4 manual table conflict: BLOCKED; all candidate DDL rolled back; original rows/history unchanged; no IF NOT EXISTS/repair/clean workaround");
     }
 }
