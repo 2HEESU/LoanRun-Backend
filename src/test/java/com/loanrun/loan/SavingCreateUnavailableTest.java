@@ -28,7 +28,7 @@ import org.testcontainers.junit.jupiter.*;
 
 /** Production wiring with no replacement budget bean. Fixture setup is not a public registration success claim. */
 @Testcontainers
-@SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties="server.servlet.session.cookie.secure=false")
+@SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties={"server.servlet.session.cookie.secure=false","spring.flyway.target=3.1"})
 @Import({SavingCreateUnavailableTest.Config.class, WithoutBudgetModule.class})
 class SavingCreateUnavailableTest {
     @Container static final PostgreSQLContainer<?> DB=new PostgreSQLContainer<>("postgres:16.16-bookworm");

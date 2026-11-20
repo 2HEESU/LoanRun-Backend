@@ -21,8 +21,8 @@ DB 장애를 NONE으로 바꾸지 않는다. 현재 예측을 만들 수 없는 
 
 ## V2 호환성과 DB 적용
 
-이번 변경은 V4를 Flyway에 자동 활성화하지 않는다. Team 2 V3/V5보다 낮은 버전을 먼저 올려
-기존 DB 순서를 바꾸지 않는다. 실제 적용은 `docs/MIGRATION_V2_REVIEW.md`의 검사/순서 확인이 선행된다.
+V4는 중앙 V3/V3.1 다음의 정식 Flyway 파일로 제공된다(#187). 실제 기존 DB의 적용 상태는
+미확인이며, 실제 적용 전 `docs/MIGRATION_V2_REVIEW.md`의 검사와 순서 확인이 선행된다.
 
 기존 V2 적립 GET은 버전 포트 없이 등록 기본 계획을 읽을 수 있었다. 새 포트 설치로 이 경로가
 깨지지 않도록 Team 1 내부 `RegistrationPlanFallback` capability를 추가했다. 공통 계약은 바꾸지 않는다.
