@@ -42,7 +42,8 @@ public class SavingListService {
         try {
             long balance=LoanSavingsCalculator.balance(loan,snapshot);
             PlanSnapshot plan=loan.initialPlan();var provider=plans.getIfAvailable();
-            if(provider!=null&&loan.storedStatus()==LoanStatus.ACTIVE) {
+            boolean registrationOnly=loan.storedStatus()==LoanStatus.ACTIVE&&provider instanceof com.loanrun.repaymentplan.read.RegistrationPlanFallback fallback&&fallback.registrationFallbackAllowed();
+            if(provider!=null&&!registrationOnly&&loan.storedStatus()==LoanStatus.ACTIVE) {
                 var current=provider.currentPlans(userId,today);if(current==null)throw ApiException.unavailable();
                 var matches=current.stream().filter(p->p.loanId()==id).toList();
                 if(matches.size()!=1)throw ApiException.unavailable();plan=matches.getFirst();
