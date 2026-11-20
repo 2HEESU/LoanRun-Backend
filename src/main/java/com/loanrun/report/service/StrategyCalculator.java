@@ -63,7 +63,8 @@ public class StrategyCalculator {
         }
         String currentCode=currentCode(input,source);Code recommendation;
         var finance=facts.finance();if(finance==null)throw ApiException.unavailable();
-        if(type.equals("SINGLE_PREFERENCE"))recommendation=StrategyRecommendationPolicy.single(facts.capacity().availableCash(),finance.planningIncome(),finance.actualDiscretionaryExpenses(),finance.discretionaryLimit());
+        Long discretionary=finance.actualDiscretionaryExpenses()!=null?finance.actualDiscretionaryExpenses():finance.discretionaryExpenses();
+        if(type.equals("SINGLE_PREFERENCE"))recommendation=StrategyRecommendationPolicy.single(facts.capacity().availableCash(),finance.planningIncome(),discretionary,finance.discretionaryLimit());
         else if(type.equals("SAVINGS_ONLY"))recommendation=Code.SAVINGS;
         else recommendation=StrategyRecommendationPolicy.multi(comparison,currentCode,facts.variableExposurePct(),rate.afterOnePpAvailable()!=null&&original.monthlyTarget()!=null&&rate.afterOnePpAvailable()<original.monthlyTarget(),
             StrategyInputPolicy.directTargets(facts.loans(),facts.asOf()).stream().anyMatch(l->l.rateType()==RateType.VARIABLE),true);
@@ -76,7 +77,7 @@ public class StrategyCalculator {
         facts.loans().stream().filter(l->l.method()==RepaymentMethod.BULLET).forEach(l->eligible.add(l.loanId()));
         for(var p:facts.plans())if(p.configured()&&eligible.contains(p.loanId()))configured=Math.addExact(configured==null?0:configured,Math.addExact(p.monthlyExtraCash(),p.monthlySaving()));
         long required=prepared.values().iterator().next().budget().requiredSaving();var budget=StrategyInputPolicy.budget(facts.capacity(),configured,required,50);
-        var situation=new Situation(budget.recurringCash(),baseline.projectedPayoffDate(),baseline.totalInterest(),RiskMath.display(RiskMath.ratio(finance.actualDiscretionaryExpenses(),finance.discretionaryLimit())),
+        var situation=new Situation(budget.recurringCash(),baseline.projectedPayoffDate(),baseline.totalInterest(),RiskMath.display(RiskMath.ratio(discretionary,finance.discretionaryLimit())),
             RiskMath.display(RiskMath.ratio(facts.capacity().availableCash(),finance.planningIncome())),household&&performance!=null?performance.consecutiveExtraOnTrackMonths():null,
             household&&performance!=null?performance.missedPaymentCount6m():null,RiskMath.display(facts.variableExposurePct()),rate.basicAtRiskFrom(),baseline.totalFee(),required,facts.capacity().recurringCap());
         var recommended=recommendation==null?null:new Recommendation(recommendation.name(),recommendation.name().equals(currentCode)?"KEEP":"NEW",reason(recommendation));

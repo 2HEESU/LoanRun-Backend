@@ -21,16 +21,21 @@ public class RiskDetailService {
         var simulation=simulations.evaluate(captured,ScenarioType.CURRENT).response();
         long basic=Math.subtractExact(Math.addExact(facts.due().scheduledCash(),facts.due().previousOutstandingCash()),facts.due().savingsUsedForDue());
         var probe=rates.probe(facts);
+        Long discretionary=finance.actualDiscretionaryExpenses()!=null?finance.actualDiscretionaryExpenses():finance.discretionaryExpenses();
         var assessment=RiskMath.assess(finance.planningIncome(),facts.capacity().availableCash(),basic,
-            finance.actualDiscretionaryExpenses(),finance.discretionaryLimit(),facts.variableExposurePct(),probe.hasVariableLoans(),
+            discretionary,finance.discretionaryLimit(),facts.variableExposurePct(),probe.hasVariableLoans(),
             probe.available(BigDecimal.ONE),facts.monthlyTarget(),!facts.loans().isEmpty());
         var indicators=new Indicators(RiskMath.display(RiskMath.ratio(facts.capacity().availableCash(),finance.planningIncome())),
             RiskMath.display(RiskMath.ratio(basic,finance.planningIncome())),facts.capacity().availableCash(),RiskMath.display(facts.variableExposurePct()),
-            finance.actualDiscretionaryExpenses(),finance.discretionaryLimit(),RiskMath.display(RiskMath.ratio(finance.actualDiscretionaryExpenses(),finance.discretionaryLimit())));
+            discretionary,finance.discretionaryLimit(),RiskMath.display(RiskMath.ratio(discretionary,finance.discretionaryLimit())));
         var upcoming=RiskDetailPresentation.events(facts.loans(),selected,facts.asOf());
         var history=RiskDetailPresentation.history(recorded,selected,month);
         var current=simulation.scenario();
-        return new Detail(assessment.level(),indicators,upcoming,history.events(),assessment.dataStatus(),assessment.checks(),simulation.rateThresholds(),
+        Level safeLevel=assessment.level()!=null?assessment.level():Level.STABLE;
+        var safeChecks=assessment.checks().stream()
+            .map(c->c.level()!=null?c:new Check(c.code(),c.label(),c.ratioPct(),Level.STABLE,c.weight(),c.points()))
+            .toList();
+        return new Detail(safeLevel,indicators,upcoming,history.events(),assessment.dataStatus(),safeChecks,simulation.rateThresholds(),
             history.changes(),true,history.summary(),simulation.incomeThresholds(),simulation.expenseThresholds(),assessment.score(),current.emergencyCoverageMonths(),
             current.emergencyCoverageStatus(),current.oneTimeShortfall());
     }

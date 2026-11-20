@@ -25,7 +25,7 @@ public final class RiskDetailPresentation {
         var changes=recorded.events().stream().filter(e->!e.date().isBefore(month.minusMonths(6).atDay(1))&&e.date().isBefore(month.atDay(1)))
             .filter(e->selected==null||e.loanId()==null||e.loanId().equals(selected))
             .sorted(Comparator.comparing(ChangeEvent::date).thenComparing(e->e.reason().name()).thenComparing(e->e.loanId()==null?0:e.loanId())).toList();
-        var events=changes.stream().map(e->new HistoryEvent(e.date(),e.reason()==Reason.RATE?"RATE_CHANGE":"BUDGET_CHANGE",e.recordedLevel(),e.description())).toList();
+        var events=changes.stream().map(e->new HistoryEvent(e.date(),e.reason()==Reason.RATE?"RATE_CHANGE":"BUDGET_CHANGE",e.recordedLevel()!=null?e.recordedLevel():Level.STABLE,e.description())).toList();
         var sixMonths=changes.stream().map(e->new Change(YearMonth.from(e.date()).toString(),e.direction().name(),e.reason().name(),e.burdenDelta(),e.date(),e.changeValue(),e.changeUnit())).toList();
         boolean observed=recorded.observedMonths().stream().anyMatch(m->!m.isBefore(month.minusMonths(6))&&m.isBefore(month));
         Long net=(!observed&&changes.isEmpty())||changes.stream().anyMatch(e->e.burdenDelta()==null)?null:changes.stream().map(ChangeEvent::burdenDelta).reduce(0L,Math::addExact);

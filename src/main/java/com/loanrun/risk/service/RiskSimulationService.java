@@ -67,8 +67,8 @@ public class RiskSimulationService {
         var feasibility=feasibility(captured,type,available,targets);
         List<String> warnings=new ArrayList<>(feasibility.warnings());
         if(type==ScenarioType.RATE_UP&&!probe.hasVariableLoans()) warnings.add("고정금리 대출에는 금리 상승폭이 적용되지 않습니다.");
-        var response=new Simulation(new Baseline(originalIncome,basic,originalCash,baseline.level(),baseline.score()),
-            new Scenario(income,burden,available,scenario.level(),feasibility.feasibility(),scenario.score(),extraExpense,coverage.months(),coverage.status(),oneTime,
+        var response=new Simulation(new Baseline(originalIncome,basic,originalCash,baseline.level()!=null?baseline.level():Level.STABLE,baseline.score()),
+            new Scenario(income,burden,available,scenario.level()!=null?scenario.level():Level.STABLE,feasibility.feasibility(),scenario.score(),extraExpense,coverage.months(),coverage.status(),oneTime,
                 type==ScenarioType.RATE_UP?1:0,type==ScenarioType.INCOME_DOWN?-5:0),
             new Delta(originalIncome==null?null:Math.subtractExact(income,originalIncome),Math.subtractExact(burden,basic),
                 available==null||originalCash==null?null:Math.subtractExact(available,originalCash)),
@@ -77,7 +77,8 @@ public class RiskSimulationService {
         return new Evaluation(response,feasibility.projectedPayoffDate(),feasibility.loanPayoffDates());
     }
     private RiskMath.Assessment assessment(RiskInputs s,Long income,Long cash,long burden,Long afterRate){
-        return RiskMath.assess(income,cash,burden,s.finance().actualDiscretionaryExpenses(),s.finance().discretionaryLimit(),s.variableExposurePct(),
+        Long discretionary=s.finance().actualDiscretionaryExpenses()!=null?s.finance().actualDiscretionaryExpenses():s.finance().discretionaryExpenses();
+        return RiskMath.assess(income,cash,burden,discretionary,s.finance().discretionaryLimit(),s.variableExposurePct(),
             s.loans().stream().anyMatch(loan->loan.rateType()==RateType.VARIABLE),afterRate,s.monthlyTarget(),!s.loans().isEmpty());
     }
     private Projection feasibility(RiskScenarioInput captured,ScenarioType type,Long available,Map<YearMonth,List<PlannedAmount>> targets){
