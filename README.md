@@ -125,7 +125,8 @@ does not advance revision. Missing required query/engine implementations return 
 See [risk input and projection contracts](docs/RISK_INPUTS.md) for cash, target and uncertainty handling.
 
 Risk detail consumer: GET `/api/risks/` supports PRO household assessment and selected detail. Preserved
-finance changes and frozen historical assessments still require persistence integration; see
+finance change journals and frozen historical assessments are enabled by `V6__risk_history_and_assessments.sql`
+and `RISK_HISTORY_ENABLED=true` by default; see
 [risk detail behavior and remaining sources](docs/RISK_DETAIL.md).
 
 Finance profile GET returns 404 before the first save. PUT validates whole-won amounts, the income type and payday,

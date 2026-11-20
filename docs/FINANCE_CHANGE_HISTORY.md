@@ -1,8 +1,7 @@
 # Finance mutation journal hooks
 
-Runtime recording is disabled by default (`RISK_HISTORY_ENABLED=false`). Enable it only after the reviewed
-risk-history SQL receives an agreed Flyway version and is applied with the budget schema. Disabled history
-does not register a successful empty risk-history provider.
+Runtime recording is formalized with `V6__risk_history_and_assessments.sql` and enabled by default (`RISK_HISTORY_ENABLED=true`).
+When explicitly disabled (`RISK_HISTORY_ENABLED=false`), no empty risk-history provider is registered.
 
 Profile PUT, current-month budget PUT and income-entry POST capture own-budget planned income/expense
 amounts before and after the mutation. The journal uses the financial mutation's revision under the same
@@ -17,7 +16,7 @@ general saving, consistently with planning cash B. This is a record of planned c
 invented historical risk score or an assertion of actual received income. The original income entries remain.
 
 Failures in journal append roll back entries/expenses/revision/idempotency together. Existing history is never
-updated/deleted. The proposal SQL is applied only to isolated test databases until migration coordination.
+updated/deleted. The risk-history schema is applied via Flyway `V6__risk_history_and_assessments.sql`.
 
 Verification: finance-history HTTP tests cover baseline/change/replay/rollback and irregular planning-income
 agreement with budget reads (4). Existing profile/monthly-write/income tests cover the unchanged API behavior.

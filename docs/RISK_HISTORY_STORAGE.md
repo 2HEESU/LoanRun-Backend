@@ -1,9 +1,6 @@
-# Risk history storage proposal
+# Risk history storage (Flyway V6)
 
-The unnumbered [SQL proposal](sql/risk_history_proposal.sql) contains Team 2 input/change/assessment journals
-and a mutable recalculation-request marker. It is outside Flyway
-discovery: agree on the next version and V3/V4/V5 order before moving it to production migrations. Existing
-DBs and migration checksums are not changed. Repository construction does not access the proposed tables.
+The schema originally drafted in [SQL proposal](sql/risk_history_proposal.sql) is formalized in Flyway `V6__risk_history_and_assessments.sql` (`RISK_HISTORY_ENABLED=true` default). Existing migrations `V1`–`V5` and checksums remain unchanged. Repository construction accesses these tables cleanly after `V6` is applied.
 
 `finance_change_events` preserves owner/revision/origin, effective month/event date, income/expense kind,
 nullable before/after amounts and whether a cash effect is known. Source amounts are not historical risk
