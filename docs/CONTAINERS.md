@@ -62,3 +62,19 @@ keep backend ports private. Edge limits are 10 API requests/second per IP (burst
 Oversized bodies return 400 JSON; rate limits return 429 JSON; upstream failures return 503 JSON.
 The only exposed operational route is `/actuator/health`. Swagger is disabled by the prod profile.
 Frontend static hosting remains unconfigured pending agreement with the frontend team; `/` returns 404.
+
+## GHCR image publishing
+
+`.github/workflows/publish-image.yml` publishes verified backend runtime images to
+`ghcr.io/loanrun-team/loanrun-backend` on pushes to `develop` or `main` (and manual `workflow_dispatch`)
+in the central `LoanRun-Team/LoanRun-Backend` repository only. Fork and pull-request runs do not execute it.
+
+Each run executes `./gradlew clean build --no-daemon`, validates `compose.production.yml`, builds the
+image from `Dockerfile`, verifies UID `10001`, Java 21 and `curl`, and then pushes:
+
+- an immutable commit tag `ghcr.io/loanrun-team/loanrun-backend:sha-<12-char-sha>` (recommended for `APP_IMAGE` and rollback), and
+- a branch convenience tag (`:dev` on `develop`, `:prod` on `main`).
+
+The published image contains no `.env` files, database credentials or external API keys.
+Set `APP_IMAGE` in the protected host env file outside the checkout to a pinned `sha-...` tag or digest,
+then pull and start the stack with `compose.production.yml`.

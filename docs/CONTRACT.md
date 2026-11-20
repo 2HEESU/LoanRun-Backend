@@ -24,6 +24,18 @@ The initial port signatures are the bootstrap integration proposal; confirm fiel
 | `ProductQueryPort` | Team 2 | Optional catalog product validation |
 | `StrategyQueryPort` | Team 2 | Strategy preview/save |
 | `FinanceProfileQueryPort` | Team 2 | Profile income-type consistency |
+| `UserAccessPort` | Team 2 | Internal/async plan checks without HTTP request scope |
+| `PlanPresentationPort` | Team 1 | Month allocation responses with caller-supplied overrides |
+
+`UserAccessPort` reloads the owner's server plan state per check. HTTP `CurrentUserProvider` still resolves
+the session before delegating; its existing signatures and public API behavior are unchanged. This adds no
+public user selector, Team 1 projection, schema change or replacement domain implementation.
+
+`PlanPresentationPort` is supplied by Team 1's `MonthlyPlanPortService`. `monthViews(userId,asOf,month,overrides)`
+reads saved plans and applies the supplied monthly view without re-entering budget capacity/mutations.
+`PlanView` contains nullable forecast/actual fields and non-null warnings. Existing field signatures/units
+are unchanged; unavailable original terms, observation evidence or historical assets stay unknown.
+Runtime source and DB activation conditions are described in `docs/PLAN_PRESENTATION_PORT.md`.
 
 The engine is pure. No replacement engine or production empty-data stub is supplied.
 All loan queries are scoped by `userId`. A foreign or missing loan produces `404 LOAN_NOT_FOUND`.
@@ -54,6 +66,14 @@ plan saves consume capacity; ledger changes call recalculation without calling a
 | V5 | Team 2 | Report jobs, strategy candidates, comparison settings |
 
 Only V1 is part of bootstrap. Notification defaults are included in V1 so those APIs can be tested without applying V5 ahead of V2–V4.
+The separate V3 schema change prepares the six finance/budget/catalog tables without product API implementations.
+`monthly_allocations.loan_id` remains a scalar until Team 1's loan schema and a subsequent FK migration are coordinated.
+V3 was already shared in the closed combined draft; this split preserves its original content and checksum.
+The V3 integration test now applies V1, then V2/V3, preserving the existing user and validating a repeat migration with no pending work.
+The V2-only upgrade test explicitly targets V2 so later migrations do not change its expected migration count.
+Before deployment, inspect the target database history. A database with V1/V2 can apply V3 in normal order;
+a database that applied V3 before V2 requires a separately coordinated migration procedure.
+Do not enable out-of-order globally in production. Validate the complete migration sequence before deployment.
 Coordinate migration ordering before merging later stages. Do not create empty placeholder migrations for another owner.
 Never edit a migration after sharing/applying it. Hibernate validates; Flyway creates schemas. No H2 substitution or ddl-auto=create.
 
