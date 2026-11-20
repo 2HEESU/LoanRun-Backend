@@ -90,7 +90,10 @@ public class PlanPerformanceQueryService {
         var regular=regularStatus(userId,loanId,loan.createdAt().atZone(KST).toLocalDate(),today);
         var balance=new SavingBalance(userId,loanId,today,loan.storedRemainingPrincipal(),LoanSavingsCalculator.balance(loan,snapshot));
         // Monthly date scopes cannot prove the intraday point at which a version's start balance was captured.
-        var performance=PlanPerformanceCalculator.calculate(new Input(plan,loan.method(),today,schedule.planned(),null,cumulativeActual,monthlyActual,balance,regular));
+        // Reduction from this version's captured start balance to the stored current balance; unknown without a captured start.
+        Long start=plan.startPrincipal();long remaining=loan.storedRemainingPrincipal();
+        var principalActual=start!=null&&remaining>=0&&remaining<=start?new PrincipalActual(userId,loanId,plan.version(),today,start-remaining):null;
+        var performance=PlanPerformanceCalculator.calculate(new Input(plan,loan.method(),today,schedule.planned(),principalActual,cumulativeActual,monthlyActual,balance,regular));
         return new Result(today,knownAt,plan,schedule,monthly,cumulative,performance,Reason.AVAILABLE);
     }
     private Verified verify(long userId,long loanId,YearMonth month,Instant knownAt,Snapshot source,boolean payment,boolean saving) {

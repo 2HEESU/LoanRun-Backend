@@ -55,6 +55,8 @@ management:
 loanrun:
   risk-history:
     enabled: ${RISK_HISTORY_ENABLED:true}
+  observation:
+    auto-confirm: ${OBSERVATION_AUTO_CONFIRM:true}
   demo-mode: ${DEMO_MODE:false}
   allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8080}
 springdoc:

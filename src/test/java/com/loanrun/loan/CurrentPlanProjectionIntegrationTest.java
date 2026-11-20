@@ -223,7 +223,7 @@ class CurrentPlanProjectionIntegrationTest {
         assertThat(result.monthlyRecorded().extraPrincipal()).isEqualTo(100000);
         assertThat(result.performance().monthlyExtra().actual()).isNull();assertThat(result.performance().cumulativeExtra().gap()).isNull();
         assertThat(result.performance().plannedProgressPct()).isEqualByComparingTo("12.50");
-        assertThat(result.performance().actualProgressPct()).isNull();assertThat(result.performance().track().dataStatus()).isEqualTo("INSUFFICIENT");
+        assertThat(result.performance().actualProgressPct()).isEqualByComparingTo("0.83");assertThat(result.performance().track().dataStatus()).isEqualTo("INSUFFICIENT");
     }
     @Test void confirmedPerformanceFlowsFromActualRowsThroughOriginalScheduleIntoTrack()throws Exception {
         long user=owner(),id=loan(user,false,true);plan(user,id,300000,0);march25();extraOn(user,id,"2026-03-25",300001);
@@ -231,7 +231,7 @@ class CurrentPlanProjectionIntegrationTest {
         assertThat(result.performance().monthlyExtra().planned()).isEqualTo(300000);
         assertThat(result.performance().cumulativeExtra().actual()).isEqualTo(300001);
         assertThat(result.performance().track().status()).isEqualTo("AHEAD");assertThat(result.performance().cumulativeExtra().gap()).isEqualTo(1);
-        assertThat(result.performance().actualProgressPct()).isNull();
+        assertThat(result.performance().actualProgressPct()).isEqualByComparingTo("2.50");
     }
     @Test void fullMonthEvidenceIsFilteredToTheSelectedPlansPartialMonth()throws Exception {
         long user=owner(),id=loan(user,false,true);plan(user,id,300000,0);march25();
@@ -274,7 +274,7 @@ class CurrentPlanProjectionIntegrationTest {
         var result=performance(null,saving).current(user,id);
         assertThat(result.performance().cumulativeSaving().actual()).isEqualTo(400000);assertThat(result.performance().cumulativeSaving().gap()).isEqualTo(-100000);
         assertThat(result.performance().savingProgressPct()).isEqualByComparingTo("20.00");assertThat(result.performance().plannedProgressPct()).isEqualByComparingTo("0.00");
-        assertThat(result.performance().actualProgressPct()).isNull();assertThat(result.performance().track().status()).isEqualTo("BEHIND");
+        assertThat(result.performance().actualProgressPct()).isEqualByComparingTo("0.00");assertThat(result.performance().track().status()).isEqualTo("BEHIND");
     }
     @Test void originalV2ScheduleRemainsUnknownRatherThanUsingCurrentTermsForPastTargets()throws Exception {
         long user=owner(),id=loan(user,false,true);march25();var result=performanceQueries.current(user,id);
