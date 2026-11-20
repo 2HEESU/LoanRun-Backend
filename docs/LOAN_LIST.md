@@ -8,8 +8,12 @@ FREE/PRO 모두 사용할 수 있다. 성공은 200 LOAN_LIST_SUCCESS이며 기�
 - count는 선택한 상태의 목록 개수, 합계는 그 목록의 ACTIVE만 포함한다. PAID 필터의 합계는 0이다.
 - 현재 remaining_principal은 저장된 현재 잔액이다. 실제 납부 원금을 다시 차감하지 않는다.
   paid_principal은 최초 원금과 현재 잔액의 차이, progress_percent는 HALF_UP 소수 2자리다.
-- 현재 회차의 estimated_monthly_payment는 저장된 확정 회차의 원금+이자다. 실제 추가상환을
-  하더라도 이번 회차의 확정 이자를 다시 낮추지 않는다. 완료된 회차 다음의 추정액은 동일 계산 엔진을 사용한다.
+- 현재 회차의 estimated_monthly_payment는 저장된 확정 회차의 원금+이자이며, estimated_monthly_principal과
+  estimated_monthly_interest로 기본 정기 상환 원금·이자를 분리 제공한다(추가 상환 제외, next_due_date 회차 기준).
+  실제 추가상환을 하더라도 이번 회차의 확정 이자를 다시 낮추지 않는다. 완료된 회차 다음의 추정액은 동일 계산 엔진을 사용한다.
+- 각 ACTIVE 대출은 현재 상환 계획·엔진 예측 기준 target_payoff_date, estimated_payoff_date,
+  estimated_remaining_interest를 제공하며, 목록 상단 estimated_payoff_date는 모든 ACTIVE 대출의 예상 완납일이
+  확인될 때 가장 늦은 날짜(하나라도 산출 불가이거나 ACTIVE 대출이 없으면 null)다. PAID 대출은 해당 항목들이 null이다.
 - total_monthly_due는 각 ACTIVE 대출의 다음 정기 회차 기본 필요액 합계다. 은행 입력액이 있으면
   그 회차의 필요액에 우선하며 0원도 유효하다. 이 합계는 일부 납부를 차감한 미납 잔액 합계나
   연체 누적액/추가상환/적립 계획 예산이 아니다. 그런 값은 회차·예산 조회의 별도 개념이다.
@@ -21,8 +25,7 @@ FREE/PRO 모두 사용할 수 있다. 성공은 200 LOAN_LIST_SUCCESS이며 기�
   남은 납부 달력 회차를 기준으로 ceil 계산한다. 후속 V4 계획 연결은 별도 작업이다.
 - 실제 저장 금리 이력의 적용일·ID 순서로 최신 금리 갱신 시각을 표시한다. 이력이 없으면 시각은 null이다.
   원본 수수료 UNKNOWN/null과 면제 false/null, 상품 null을 보존한다.
-- 현재 계획/확정 실적 속도를 공급하는 구현이 없으므로 estimated_payoff_date는 null이다.
-  계약 만기를 실제 예상 완납일로 대체하지 않는다.
+- 계약 만기를 실제 예상 완납일로 임의 대체하지 않고 PlanPayoffQueryService 예측 결과를 사용한다.
 
 전체 원본을 REPEATABLE_READ 읽기 전용 트랜잭션으로 조회한다. 잔액·회차·계획·revision을 변경하거나
 누락된 과거 실적을 0원으로 만들지 않는다. 잘못된 저장 원본, 음수 적립 자산, 금액 overflow,
