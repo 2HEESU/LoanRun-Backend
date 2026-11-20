@@ -14,7 +14,8 @@ public class WithoutBudgetModule {
             @Override public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry registry) {
                 for (String name : registry.getBeanDefinitionNames()) {
                     String type = registry.getBeanDefinition(name).getBeanClassName();
-                    if (type != null && type.startsWith("com.loanrun.budget.")) registry.removeBeanDefinition(name);
+                    if (type != null && (type.startsWith("com.loanrun.budget.")
+                            || type.startsWith("com.loanrun.onboarding."))) registry.removeBeanDefinition(name);
                 }
             }
             @Override public void postProcessBeanFactory(ConfigurableListableBeanFactory factory) {}
