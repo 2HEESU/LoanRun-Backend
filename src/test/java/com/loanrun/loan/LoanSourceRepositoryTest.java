@@ -66,7 +66,7 @@ class LoanSourceRepositoryTest {
         assertThat(loan.initialPlan().monthlySaving()).isEqualTo(1000000);
         var snapshot=sources.snapshot(owner,date(1));assertThat(snapshot.payments()).isEmpty();assertThat(snapshot.savings()).isEmpty();
         assertThat(snapshot.balances()).hasSize(1);assertThat(snapshot.rates()).hasSize(1);
-        assertThat(queryPort.getIfAvailable()).isNull(); // No incomplete production port is installed.
+        assertThat(queryPort.getIfAvailable()).isInstanceOf(LoanLedgerQueryService.class);
     }
     @Test void loanLookupHidesForeignAndMissingIdsAndReadSnapshotScopesEveryCollection()throws Exception {
         long a=owner(),b=owner(),loanA=loan(a,true),loanB=loan(b,true);
