@@ -1,6 +1,7 @@
 # 대출 상세 조회 API #15
 
-GET /api/loans/{loan_id}/는 기존 목록과 같은 공개 대출 필드, 현재 계획, 잔여 이자/수수료 및 실제
+GET /api/loans/{loan_id}/는 기존 목록과 같은 공개 대출 필드(estimated_monthly_principal, estimated_monthly_interest,
+estimated_remaining_interest, next_due_date, target_payoff_date, estimated_payoff_date 포함), 현재 계획, 잔여 이자/수수료 및 실제
 저장된 다음 미충족 회차를 조합한다. PAID는 다음 납부가 null이며 DELETED/타인/없는 ID는404다.
 비공개/다른 대출의 잘못된 원천을 먼저 파싱하지 않는다. GET preview는 기존405를 유지한다.
 

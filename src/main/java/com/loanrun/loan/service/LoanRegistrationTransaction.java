@@ -56,11 +56,19 @@ public class LoanRegistrationTransaction {
         revisions.bump(userId,"LOAN_CREATED");
         var row=prepared.schedule().isEmpty()?null:prepared.schedule().getFirst();
         long estimate=row==null?0:Math.addExact(row.scheduledPrincipal(),row.interest());
+        boolean active=t.outstanding()>0;
+        Long monthlyPrincipal=active&&row!=null?row.scheduledPrincipal():null;
+        Long monthlyInterest=active&&row!=null?row.interest():null;
+        Long remainingInterest=active?prepared.schedule().stream().mapToLong(SimulationRow::interest).reduce(0L,Math::addExact):null;
+        LocalDate nextDueDate=active&&row!=null?row.date():null;
+        LocalDate targetPayoffDate=active?t.maturityDate():null;
+        LocalDate estimatedPayoffDate=active&&!prepared.schedule().isEmpty()&&prepared.schedule().getLast().balance()==0?prepared.schedule().getLast().date():null;
         long paid=t.principalOriginal()-t.outstanding();
         var progress=BigDecimal.valueOf(paid).multiply(BigDecimal.valueOf(100)).divide(BigDecimal.valueOf(t.principalOriginal()),2,RoundingMode.HALF_UP);
         var response=new LoanCreated(id,v.productId(),v.institutionName(),t.productName(),t.loanType(),"GENERAL",t.method(),t.principalOriginal(),t.outstanding(),
             t.annualRate(),t.rateType(),v.rateResetMonths(),v.nextRateResetDate(),v.startDate(),t.maturityDate(),t.dueDay(),v.graceMonths(),t.postGraceMethod(),
-            t.contractualNextAmount(),estimate,paid,progress,t.outstanding()==0?LoanStatus.PAID:LoanStatus.ACTIVE,t.snapshotDate(),
+            t.contractualNextAmount(),estimate,monthlyPrincipal,monthlyInterest,remainingInterest,nextDueDate,targetPayoffDate,estimatedPayoffDate,
+            paid,progress,t.outstanding()==0?LoanStatus.PAID:LoanStatus.ACTIVE,t.snapshotDate(),
             t.method()==RepaymentMethod.BULLET?"LUMP_SUM":"INSTALLMENT","MANUAL",now.atZone(ZoneId.of("Asia/Seoul")).toOffsetDateTime(),false,
             t.rateType()==RateType.VARIABLE?"MANUAL_REQUIRED":"NOT_APPLICABLE",t.prepaymentPolicy(),prepared.originalFeeMethod(),t.feeRate(),t.feeStartDate(),t.feeEndDate(),
             v.feeExempt(),t.currentSavingBalance(),prepared.requiredSaving(),t.snapshotDate(),t.outstanding());

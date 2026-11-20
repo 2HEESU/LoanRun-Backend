@@ -76,7 +76,14 @@ class LoanListIntegrationTest {
         assertThat(d.path("count").intValue()).isEqualTo(1);assertThat(l.path("loan_id").longValue()).isEqualTo(id);
         assertThat(l.path("as_of").asText()).isEqualTo("2026-03-01");assertThat(l.path("rate_updated_at").asText()).isEqualTo("2026-03-01T00:30:00+09:00");
         assertThat(l.path("estimated_monthly_payment").longValue()).isEqualTo(1260000);
+        assertThat(l.path("estimated_monthly_principal").longValue()).isEqualTo(1200000);
+        assertThat(l.path("estimated_monthly_interest").longValue()).isEqualTo(60000);
+        assertThat(l.path("estimated_remaining_interest").longValue()).isEqualTo(330000);
+        assertThat(l.path("next_due_date").asText()).isEqualTo("2026-03-25");
+        assertThat(l.path("target_payoff_date").asText()).isEqualTo("2026-12-25");
+        assertThat(l.path("estimated_payoff_date").asText()).isEqualTo("2026-12-25");
         assertThat(d.path("total_monthly_due").longValue()).isEqualTo(1260000);
+        assertThat(d.path("estimated_payoff_date").asText()).isEqualTo("2026-12-25");
         assertThat(l.path("product_id").isNull()).isTrue();assertThat(l.path("contractual_monthly_payment").isNull()).isTrue();
         assertThat(l.path("prepayment_fee_rate").isNull()).isTrue();assertThat(l.path("fee_exempt").isNull()).isTrue();
         assertThat(l.path("rate_link_consent").booleanValue()).isFalse();assertThat(l.path("rate_sync_status").asText()).isEqualTo("NOT_APPLICABLE");
@@ -94,6 +101,13 @@ class LoanListIntegrationTest {
         var p=list(b,"?status=PAID");assertThat(p.path("count").intValue()).isEqualTo(1);
         assertThat(p.path("loans").get(0).path("loan_id").longValue()).isEqualTo(paid);
         assertThat(p.path("loans").get(0).path("estimated_monthly_payment").longValue()).isZero();
+        assertThat(p.path("loans").get(0).path("estimated_monthly_principal").isNull()).isTrue();
+        assertThat(p.path("loans").get(0).path("estimated_monthly_interest").isNull()).isTrue();
+        assertThat(p.path("loans").get(0).path("estimated_remaining_interest").isNull()).isTrue();
+        assertThat(p.path("loans").get(0).path("next_due_date").isNull()).isTrue();
+        assertThat(p.path("loans").get(0).path("target_payoff_date").isNull()).isTrue();
+        assertThat(p.path("loans").get(0).path("estimated_payoff_date").isNull()).isTrue();
+        assertThat(p.path("estimated_payoff_date").isNull()).isTrue();
         assertThat(p.path("total_monthly_due").longValue()).isZero();assertThat(p.path("total_remaining_principal").longValue()).isZero();
         assertThat(all.path("loans").get(0).path("loan_id").longValue()).isEqualTo(active);
     }
