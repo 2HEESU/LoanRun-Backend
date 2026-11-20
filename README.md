@@ -100,6 +100,7 @@ Allocation route: PUT `/api/budgets/{year_month}/allocation/`.
 Comparison settings routes: GET/PATCH `/api/reports/comparison-settings/`.
 Report read routes: GET `/api/reports/latest/`, GET `/api/reports/{report_id}/`.
 Report generation route: POST `/api/reports/`.
+Strategy route: GET `/api/reports/strategy/`.
 
 Product lookup adds GET `/api/loan-products/options/` and GET `/api/loan-products/`.
 Public disclosure caching uses the FSS client and preserves the entire previous cache if refresh fails.
