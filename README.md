@@ -156,6 +156,11 @@ settlement, revision and the stored retry response commit together. FREE respons
 including replay of a response originally saved under PRO. Schema and shared-port prerequisites must be integrated
 before opening this feature's central PR.
 
+Onboarding uses GET `/api/onboarding/` and POST `/api/onboarding/complete/`.
+It requires an active owned loan, a saved finance profile and a configured plan for every active loan.
+Missing installment prepayment policies or BULLET target/saving plans retain the goal step.
+Repeated successful completion does not advance revision. Until Team 1 query ports are integrated it returns 503.
+
 ## Shared development
 
 [Technical contracts](docs/CONTRACT.md) define domain ownership, ports and migration reservations.
