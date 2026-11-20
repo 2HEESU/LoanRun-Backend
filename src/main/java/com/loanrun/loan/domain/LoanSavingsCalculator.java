@@ -38,8 +38,10 @@ public final class LoanSavingsCalculator {
         if(l.storedStatus()!=LoanStatus.ACTIVE||l.method()!=RepaymentMethod.BULLET)return 0;
         if(target==null||target.isAfter(l.maturityDate()))throw ApiException.unavailable();
         // Saving dates are independent of whether this month's regular interest has already been paid.
+        var savingDate=RepaymentDates.dueDate(java.time.YearMonth.from(today),l.paymentDay());
+        if(savingDate.isBefore(today))savingDate=RepaymentDates.dueDate(java.time.YearMonth.from(today).plusMonths(1),l.paymentDay());
         var terms=new LoanTerms(l.loanId(),l.userId(),l.productName(),l.loanType(),l.originalPrincipal(),l.storedRemainingPrincipal(),
-            l.latestSnapshotDate(),l.annualRate(),l.rateType(),l.method(),l.graceEnd(),l.postGraceMethod(),l.storedNextDueDate(),l.paymentDay(),
+            l.latestSnapshotDate(),l.annualRate(),l.rateType(),l.method(),l.graceEnd(),l.postGraceMethod(),savingDate,l.paymentDay(),
             l.maturityDate(),null,l.baseAnchor(),l.fixedPrincipal(),l.prepaymentPolicy(),l.originalFeeMethod(),l.feeRate(),l.feeStart(),l.feeEnd(),
             l.initialSavings(),savings,l.storedStatus(),l.nextRateResetDate());
         long periods=RepaymentDates.remaining(terms,today).stream().filter(d->!d.isAfter(target)).count();
