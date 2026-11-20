@@ -26,6 +26,9 @@ The initial port signatures are the bootstrap integration proposal; confirm fiel
 | `FinanceProfileQueryPort` | Team 2 | Profile income-type consistency |
 | `UserAccessPort` | Team 2 | Internal/async plan checks without HTTP request scope |
 | `PlanPresentationPort` | Team 1 | Month allocation responses with caller-supplied overrides |
+| `PlanPerformanceQueryPort` | Team 1 | Historical 3m adherence, consecutive extra-goal streak, 6m confirmed missed-payment count |
+| `DashboardQueryPort` | Team 1 | Owner-scoped home ledger/plan snapshot for API #42 |
+| `ReportHistoryQueryPort`, `LoanEventQueryPort` | Team 1 | Report monthly history and manual rate-change events |
 
 `UserAccessPort` reloads the owner's server plan state per check. HTTP `CurrentUserProvider` still resolves
 the session before delegating; its existing signatures and public API behavior are unchanged. This adds no
