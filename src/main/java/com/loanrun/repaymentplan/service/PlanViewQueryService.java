@@ -28,12 +28,20 @@ public class PlanViewQueryService {
         this.loans=loans;this.payoffs=payoffs;this.performance=performance;this.plans=plans;this.engine=engine;this.clock=clock;
     }
     public PlanView current(long user,long id,List<PlannedAmount> overrides,Long recurringCap,Integer priority) {
+        return current(user,id,overrides,recurringCap,priority,null);
+    }
+    /** A monthly caller must not use next-cycle metadata as this month's plan version. */
+    public Optional<PlanView> currentForVersion(long user,long id,List<PlannedAmount> overrides,Integer priority,long version) {
+        return Optional.ofNullable(current(user,id,overrides,null,priority,version));
+    }
+    private PlanView current(long user,long id,List<PlannedAmount> overrides,Long recurringCap,Integer priority,Long version) {
         var p=payoffs.current(user,id);var current=p.current();var loan=current.loan();var date=current.asOf();
         if(loan.storedStatus()==LoanStatus.DELETED)throw new ApiException(org.springframework.http.HttpStatus.NOT_FOUND,"LOAN_NOT_FOUND","대출을 찾을 수 없습니다.");
         var f=performance.current(user,id);
         if(!date.equals(f.asOf())||!date.equals(LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul")))))throw ApiException.unavailable();
         var source=p.plan()!=null?p.plan():f.plan();
         if(source==null)source=plans.forDate(user,id,loan.storedNextDueDate().isAfter(date)?loan.storedNextDueDate():date,date).orElseThrow(ApiException::unavailable);
+        if(version!=null&&source.version()!=version)return null;
         var schedule=new PlanScheduleProjection(engine).throughMonth(source,YearMonth.from(date));
         var perf=f.plan()!=null&&f.plan().version()==source.version()?f.performance():null;
         boolean bullet=loan.method()==RepaymentMethod.BULLET,active=loan.storedStatus()==LoanStatus.ACTIVE;
@@ -53,8 +61,7 @@ public class PlanViewQueryService {
             }
             plannedExtra=e;plannedSaving=s;
         } else if(bullet) {
-            var due=loan.storedNextDueDate();
-            if(!YearMonth.from(due).isAfter(YearMonth.from(date))&&!YearMonth.from(date).isAfter(YearMonth.from(loan.maturityDate())))plannedSaving=source.monthlySaving();
+            if(!YearMonth.from(source.effectiveDate()).isAfter(YearMonth.from(date))&&!YearMonth.from(date).isAfter(YearMonth.from(loan.maturityDate())))plannedSaving=source.monthlySaving();
             else plannedSaving=0L;
         }
         PlannedAmount override=null;
