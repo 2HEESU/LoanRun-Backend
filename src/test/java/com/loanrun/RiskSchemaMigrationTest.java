@@ -33,7 +33,7 @@ class RiskSchemaMigrationTest {
     }
 
     @Test
-    void upgradesV5ToV6WithoutLosingRowsAndEnforcesImmutabilityAndConstraints() {
+    void upgradesV5ThroughV7WithoutLosingRowsAndEnforcesImmutabilityAndConstraints() {
         var source = new DriverManagerDataSource(DB.getJdbcUrl(), DB.getUsername(), DB.getPassword());
         var jdbc = new JdbcTemplate(source);
 
@@ -41,7 +41,7 @@ class RiskSchemaMigrationTest {
         long userId = insertUser(jdbc);
 
         var latest = flyway(source, null);
-        assertThat(latest.migrate().migrationsExecuted).isEqualTo(1);
+        assertThat(latest.migrate().migrationsExecuted).isEqualTo(2);
         latest.validate();
         assertThat(latest.migrate().migrationsExecuted).isZero();
 
@@ -49,7 +49,7 @@ class RiskSchemaMigrationTest {
             "SELECT version FROM flyway_schema_history WHERE success=TRUE ORDER BY installed_rank",
             String.class
         );
-        assertThat(versions).containsExactly("1", "2", "3", "3.1", "4", "5", "6");
+        assertThat(versions).containsExactly("1", "2", "3", "3.1", "4", "5", "6", "7");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM demo_users WHERE id=?", Long.class, userId)).isEqualTo(1);
         assertThat(jdbc.queryForObject("""
             SELECT count(*) FROM information_schema.tables WHERE table_schema='public'
