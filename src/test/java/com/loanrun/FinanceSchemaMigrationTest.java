@@ -25,9 +25,11 @@ class FinanceSchemaMigrationTest {
             """, Long.class);
 
         var flyway = Flyway.configure().dataSource(source).target("3").load();
-        assertThat(flyway.migrate().migrationsExecuted).isGreaterThanOrEqualTo(1);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(2);
         assertThat(flyway.info().current().getVersion().toString()).isEqualTo("3");
         flyway.validate();
+        assertThat(flyway.migrate().migrationsExecuted).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM loans", Long.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM demo_users WHERE id=?", Long.class, user)).isEqualTo(1);
         assertThat(jdbc.queryForObject("""
             SELECT count(*) FROM information_schema.tables WHERE table_schema='public'
