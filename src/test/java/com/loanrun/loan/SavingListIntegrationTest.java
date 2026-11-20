@@ -47,8 +47,16 @@ class SavingListIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired LoanSourceRepository sources;
     @Autowired TestClock clock;
+    @Autowired PlanQueryPort runtimePlans;
     @LocalServerPort int port;
     @BeforeEach void reset(){clock.value=Instant.parse("2026-02-28T15:30:00Z");}
+    @Test void runtimePortDoesNotBreakTheExplicitV2RegistrationReadCompatibility()throws Exception {
+        var b=browser();long user=owner(b),id=loan(b,input());
+        assertThat(((com.loanrun.repaymentplan.read.RegistrationPlanFallback)runtimePlans).registrationFallbackAllowed()).isTrue();
+        assertThatThrownBy(()->runtimePlans.currentPlans(user,LocalDate.of(2026,3,1)))
+            .isInstanceOfSatisfying(ApiException.class,e->assertThat(e.code()).isEqualTo("SERVICE_UNAVAILABLE"));
+        assertThat(get(b,path(id)).statusCode()).isEqualTo(200);
+    }
     void day(int day){clock.value=LocalDate.of(2026,3,day).atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();}
     HttpClient browser(){return HttpClient.newBuilder().cookieHandler(new CookieManager(null,CookiePolicy.ACCEPT_ALL)).build();}
     HttpResponse<String> get(HttpClient b,String path)throws Exception{return b.send(HttpRequest.newBuilder(URI.create("http://localhost:"+port+path)).GET().build(),HttpResponse.BodyHandlers.ofString());}
