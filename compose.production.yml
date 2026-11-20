@@ -37,9 +37,13 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set a private database password}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set exact HTTPS frontend origins}
       DEMO_MODE: ${DEMO_MODE:-false}
+      RISK_HISTORY_ENABLED: ${RISK_HISTORY_ENABLED:-true}
       SERVER_FORWARD_HEADERS_STRATEGY: native
-      FSS_ENABLED: "false"
-      OPENAI_ENABLED: "false"
+      FSS_ENABLED: ${FSS_ENABLED:-false}
+      FSS_API_KEY: ${FSS_API_KEY:-}
+      OPENAI_ENABLED: ${OPENAI_ENABLED:-false}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
     depends_on:
       db:
         condition: service_healthy
