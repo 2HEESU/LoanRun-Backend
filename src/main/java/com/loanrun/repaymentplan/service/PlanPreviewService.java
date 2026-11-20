@@ -76,13 +76,24 @@ public class PlanPreviewService {
             if(!bullet&&mode.equals("MATURITY"))target=t.maturityDate();
             if(!mode.equals("PREFERENCE")&&p.hasNonNull("preference"))throw validation("preference");
             if(!mode.equals("MONTHLY_AMOUNT")&&p.hasNonNull("monthly_amount"))throw validation("monthly_amount");
-            if(!Set.of("EXTRA_AMOUNT","PREFERENCE").contains(mode)&&p.hasNonNull("extra_monthly_payment"))throw validation("extra_monthly_payment");
+            if((bullet||!Set.of("EXTRA_AMOUNT","PREFERENCE").contains(mode))&&p.hasNonNull("extra_monthly_payment"))throw validation("extra_monthly_payment");
             if(!bullet&&p.hasNonNull("planned_saving_amount"))throw validation("planned_saving_amount");
             if(bullet) {
-                if(!Set.of("MATURITY","TARGET_DATE").contains(mode))throw validation("mode");target=target==null?t.maturityDate():target;
-                var inverse=engine.minimumExtra(new TargetInput(input(List.of(new Goal(t,mode,null,target,start,0,0,null,true)),today,"KEEP_PLANS"),id,target));
-                if(!inverse.feasible()||inverse.minimumMonthlyExtraCash()==null)throw notFeasible();
-                saving=p.hasNonNull("planned_saving_amount")?amount(p,"planned_saving_amount",true):inverse.minimumMonthlyExtraCash();
+                if(!Set.of("MATURITY","TARGET_DATE","PREFERENCE","MONTHLY_AMOUNT").contains(mode))throw validation("mode");
+                if(!Set.of("MATURITY","TARGET_DATE").contains(mode)&&target!=null)throw validation("target_date");
+                target=target==null?t.maturityDate():target;
+                if(mode.equals("PREFERENCE")) {
+                    preference=JsonPatch.text(p,"preference",false,30);if(!Set.of("FAST","BALANCED","STABLE").contains(preference))throw validation("preference");
+                    preferenceRequests.put(id,p);
+                } else if(mode.equals("MONTHLY_AMOUNT")) {
+                    long monthly=amount(p,"monthly_amount",true);var base=engine.simulate(new SimulationInput(List.of(t),today,1200,Map.of(),Map.of(),null,"NONE"));if(base.rows().isEmpty())throw notFeasible();
+                    long basic=base.rows().getFirst().interest();if(monthly<basic)throw notFeasible();
+                    saving=p.hasNonNull("planned_saving_amount")?amount(p,"planned_saving_amount",true):monthly-basic;
+                } else {
+                    var inverse=engine.minimumExtra(new TargetInput(input(List.of(new Goal(t,mode,null,target,start,0,0,null,true)),today,"KEEP_PLANS"),id,target));
+                    if(!inverse.feasible()||inverse.minimumMonthlyExtraCash()==null)throw notFeasible();
+                    saving=p.hasNonNull("planned_saving_amount")?amount(p,"planned_saving_amount",true):inverse.minimumMonthlyExtraCash();
+                }
             } else if(mode.equals("PREFERENCE")) {
                 preference=JsonPatch.text(p,"preference",false,30);if(!Set.of("FAST","BALANCED","STABLE").contains(preference))throw validation("preference");preferenceRequests.put(id,p);
             } else if(mode.equals("EXTRA_AMOUNT"))extra=amount(p,"extra_monthly_payment",true);
@@ -144,12 +155,59 @@ public class PlanPreviewService {
         String revision="rev-"+revisions.current(user)+"-"+today;data.put("data_revision",revision);data.put("preview_version",hash(user,revision,body));return data;
     }
     private void allocatePreference(List<Goal> goals,Map<Long,JsonNode> requests,long cap) {
-        var prefs=goals.stream().filter(g->requests.containsKey(g.terms().loanId())).toList();String preference=prefs.getFirst().preference();if(prefs.stream().anyMatch(g->!preference.equals(g.preference())))throw validation("preference");
-        int percent=switch(preference){case "FAST"->80;case "BALANCED"->50;default->0;};long pool=BigDecimal.valueOf(cap).multiply(BigDecimal.valueOf(percent)).divide(BigDecimal.valueOf(100),0,RoundingMode.HALF_UP).longValueExact();
-        long other=goals.stream().filter(g->!requests.containsKey(g.terms().loanId())).mapToLong(Goal::amount).reduce(0,Math::addExact);long remaining=Math.max(0,pool-other),assigned=0;
-        for(int i=0;i<goals.size();i++){var g=goals.get(i);var p=requests.get(g.terms().loanId());if(p==null)continue;long extra=prefs.size()==1&&!p.hasNonNull("extra_monthly_payment")?remaining:amount(p,"extra_monthly_payment",true);assigned=Math.addExact(assigned,extra);goals.set(i,g.amounts(extra,0));}
-        if(assigned!=remaining)throw validation("extra_monthly_payment");
+        var prefs=goals.stream().filter(g->requests.containsKey(g.terms().loanId())).toList();
+        boolean hasExplicit=prefs.stream().anyMatch(g->{var p=requests.get(g.terms().loanId());return p.hasNonNull("extra_monthly_payment")||p.hasNonNull("planned_saving_amount");});
+        long other=goals.stream().filter(g->!requests.containsKey(g.terms().loanId())).mapToLong(Goal::amount).reduce(0,Math::addExact);
+        if(hasExplicit) {
+            String preference=prefs.getFirst().preference();if(prefs.stream().anyMatch(g->!preference.equals(g.preference())))throw validation("preference");
+            long pool=preferencePool(cap,preferencePercent(preference));
+            long remaining=Math.max(0,pool-other),assigned=0;
+            String mismatchField="extra_monthly_payment";
+            for(int i=0;i<goals.size();i++) {
+                var g=goals.get(i);var p=requests.get(g.terms().loanId());if(p==null)continue;
+                boolean bullet=g.terms().method()==RepaymentMethod.BULLET;
+                String field=bullet?"planned_saving_amount":"extra_monthly_payment";
+                if(bullet)mismatchField=field;
+                long amount=amount(p,field,true);
+                assigned=Math.addExact(assigned,amount);
+                goals.set(i,withPreferenceAmount(g,amount));
+            }
+            if(assigned!=remaining)throw validation(mismatchField);
+            return;
+        }
+        int maxPercent=prefs.stream().mapToInt(g->preferencePercent(g.preference())).max().orElse(0);
+        long pool=preferencePool(cap,maxPercent);
+        long remaining=Math.max(0,pool-other);
+        var active=prefs.stream().filter(g->preferencePercent(g.preference())>0).toList();
+        Map<Long,Long> allocated=new HashMap<>();
+        if(!active.isEmpty()&&remaining>0) {
+            if(active.size()==1)allocated.put(active.getFirst().terms().loanId(),remaining);
+            else {
+                var eligible=active.stream().filter(g->!isGraceRestricted(g)).toList();
+                var targets=new ArrayList<>(eligible.isEmpty()?active:eligible);
+                targets.sort(Comparator.comparingInt((Goal g)->-preferencePercent(g.preference()))
+                    .thenComparingInt(g->g.terms().rateType()==RateType.VARIABLE?0:1)
+                    .thenComparing(Comparator.comparingLong((Goal g)->g.terms().rateType()==RateType.VARIABLE?g.terms().outstanding():0L).reversed())
+                    .thenComparing(Comparator.comparing((Goal g)->g.terms().rateType()==RateType.VARIABLE?BigDecimal.ZERO:g.terms().annualRate()).reversed())
+                    .thenComparingLong(g->g.terms().loanId()));
+                long left=remaining;
+                for(var g:targets) {
+                    if(left<=0)break;
+                    long give=Math.min(left,Math.max(0L,g.terms().outstanding()));
+                    allocated.put(g.terms().loanId(),give);
+                    left-=give;
+                }
+            }
+        }
+        for(int i=0;i<goals.size();i++) {
+            var g=goals.get(i);if(!requests.containsKey(g.terms().loanId()))continue;
+            goals.set(i,withPreferenceAmount(g,allocated.getOrDefault(g.terms().loanId(),0L)));
+        }
     }
+    private static int preferencePercent(String preference){return switch(preference){case "FAST"->80;case "BALANCED"->50;default->0;};}
+    private static long preferencePool(long cap,int percent){return BigDecimal.valueOf(cap).multiply(BigDecimal.valueOf(percent)).divide(BigDecimal.valueOf(100),0,RoundingMode.HALF_UP).longValueExact();}
+    private static boolean isGraceRestricted(Goal g){return g.terms().method()==RepaymentMethod.GRACE_INSTALLMENT&&g.terms().nextDueDate().isBefore(g.terms().graceEnd());}
+    private static Goal withPreferenceAmount(Goal g,long value){return g.terms().method()==RepaymentMethod.BULLET?g.amounts(0,value):g.amounts(value,0);}
     private SimulationInput input(List<Goal> goals,LocalDate today,String rule) {
         Map<YearMonth,List<PlannedAmount>> amounts=new HashMap<>();for(var g:goals)for(var d:RepaymentDates.remaining(g.terms(),today))if(!d.isBefore(g.effective()))
             amounts.computeIfAbsent(YearMonth.from(d),k->new ArrayList<>()).add(new PlannedAmount(g.terms().loanId(),g.terms().method()==RepaymentMethod.BULLET?AllocationType.REPAYMENT_SAVING:AllocationType.EXTRA_PAYMENT,g.amount(),g.priority()));

@@ -105,5 +105,42 @@ class PlanSaveIntegrationTest {
         var denied=request(b,"PUT","/api/repayment-plans/",body,"strategy");assertThat(denied.statusCode()).as(denied.body()).isEqualTo(403);assertThat(json(denied).path("code").asText()).isEqualTo("PRO_REQUIRED");
         var replay=request(b,"PUT","/api/repayment-plans/",direct,"direct");assertThat(replay.statusCode()).as(replay.body()).isEqualTo(200);var data=json(replay).path("data");assertThat(data.path("strategy_code").isNull()).isTrue();assertThat(data.path("overall_plan_exists").asBoolean()).isFalse();for(var row:data.path("plans"))assertThat(row.path("priority").isNull()).isTrue();for(var row:data.path("allocations"))assertThat(row.path("priority").isNull()).isTrue();assertThat(revisions.current(user)).isEqualTo(currentRevision);
     }
+    @Test void acceptsDataRevisionOnSaveAndPersistsBulletPreferenceAndMonthlyAmount()throws Exception {
+        var b=browser();long user=owner(b),installment=loan(user,false,true),bullet=loan(user,true,true);
+        jdbc.update("UPDATE demo_users SET plan_type='PRO' WHERE id=?",user);
+        long rev=revisions.current(user);
+        var allocations=List.of(new PlannedAmount(installment,AllocationType.EXTRA_PAYMENT,300000,1),new PlannedAmount(bullet,AllocationType.REPAYMENT_SAVING,1000000,null));
+        var simulation=engine.simulate(new SimulationInput(List.of(current.current(user,installment).terms(),current.current(user,bullet).terms()),LocalDate.of(2026,3,1),1200,Map.of(),Map.of(),null,"NONE"));
+        when(candidates.requireCurrentCandidate(user,2,"v2","INTEREST_SAVING",rev)).thenReturn(new StrategyCandidate(2,"v2","INTEREST_SAVING","MULTI",rev,clock.instant(),allocations,simulation,true,List.of()));
+        var strategyReq=(com.fasterxml.jackson.databind.node.ObjectNode)mapper.readTree("{\"report_id\":2,\"strategy_code\":\"INTEREST_SAVING\",\"strategy_version\":\"v2\"}");
+        var strategyPreview=request(b,"POST","/api/repayment-plans/preview/",strategyReq,null);assertThat(strategyPreview.statusCode()).as(strategyPreview.body()).isEqualTo(200);
+        strategyReq.put("preview_version",json(strategyPreview).path("data").path("preview_version").asText());
+        strategyReq.put("data_revision",json(strategyPreview).path("data").path("data_revision").asText());
+        assertThat(request(b,"PUT","/api/repayment-plans/",strategyReq,"strategy-with-rev").statusCode()).isEqualTo(200);
+
+        var badRev=prepared(b,installment);((com.fasterxml.jackson.databind.node.ObjectNode)badRev).put("data_revision",123);
+        var badRes=request(b,"PUT","/api/repayment-plans/",badRev,"bad-rev");assertThat(badRes.statusCode()).isEqualTo(400);assertThat(json(badRes).path("code").asText()).isEqualTo("PLAN_VALIDATION_ERROR");
+
+        var bulletPref=(com.fasterxml.jackson.databind.node.ObjectNode)mapper.readTree("{\"plans\":[{\"loan_id\":"+bullet+",\"mode\":\"PREFERENCE\",\"preference\":\"BALANCED\"}]}");
+        var prefPreview=request(b,"POST","/api/repayment-plans/preview/",bulletPref,null);assertThat(prefPreview.statusCode()).as(prefPreview.body()).isEqualTo(200);
+        bulletPref.put("preview_version",json(prefPreview).path("data").path("preview_version").asText());
+        bulletPref.put("data_revision",json(prefPreview).path("data").path("data_revision").asText());
+        var prefSave=request(b,"PUT","/api/repayment-plans/",bulletPref,"bullet-pref");assertThat(prefSave.statusCode()).as(prefSave.body()).isEqualTo(200);
+        assertThat(queries.currentPlans(user,LocalDate.of(2026,3,1)).stream().filter(p->p.loanId()==bullet).findFirst().orElseThrow())
+            .satisfies(p->{assertThat(p.mode()).isEqualTo("PREFERENCE");assertThat(p.monthlyExtraCash()).isZero();assertThat(p.monthlySaving()).isEqualTo(700000);});
+
+        var bulletMonthly=(com.fasterxml.jackson.databind.node.ObjectNode)mapper.readTree("{\"plans\":[{\"loan_id\":"+bullet+",\"mode\":\"MONTHLY_AMOUNT\",\"monthly_amount\":1060000,\"planned_saving_amount\":1000000}]}");
+        var monthlyPreview=request(b,"POST","/api/repayment-plans/preview/",bulletMonthly,null);assertThat(monthlyPreview.statusCode()).as(monthlyPreview.body()).isEqualTo(200);
+        bulletMonthly.put("preview_version",json(monthlyPreview).path("data").path("preview_version").asText());
+        var monthlySave=request(b,"PUT","/api/repayment-plans/",bulletMonthly,"bullet-monthly");assertThat(monthlySave.statusCode()).as(monthlySave.body()).isEqualTo(200);
+        assertThat(queries.currentPlans(user,LocalDate.of(2026,3,1)).stream().filter(p->p.loanId()==bullet).findFirst().orElseThrow())
+            .satisfies(p->{assertThat(p.mode()).isEqualTo("MONTHLY_AMOUNT");assertThat(p.monthlyExtraCash()).isZero();assertThat(p.monthlySaving()).isEqualTo(1000000);});
+
+        var bulletOverride=(com.fasterxml.jackson.databind.node.ObjectNode)mapper.readTree("{\"plans\":[{\"loan_id\":"+bullet+",\"mode\":\"MONTHLY_AMOUNT\",\"monthly_amount\":560000}]}");
+        var overridePreview=request(b,"POST","/api/repayment-plans/preview/",bulletOverride,null);assertThat(overridePreview.statusCode()).as(overridePreview.body()).isEqualTo(200);
+        bulletOverride.put("preview_version",json(overridePreview).path("data").path("preview_version").asText());
+        var overrideSave=request(b,"PUT","/api/repayment-plans/",bulletOverride,"bullet-override");assertThat(overrideSave.statusCode()).as(overrideSave.body()).isEqualTo(200);
+        assertThat(queries.currentPlans(user,LocalDate.of(2026,3,1)).stream().filter(p->p.loanId()==bullet).findFirst().orElseThrow().monthlySaving()).isEqualTo(500000);
+    }
 
 }
