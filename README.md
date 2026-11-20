@@ -93,6 +93,10 @@ and returns `report_stale: false` (no additional invalidation). See [confirmatio
 
 Current routes: DELETE `/api/loans/{loan_id}/`, PATCH/DELETE `/api/repayment-savings/{saving_id}/`, GET/POST `/api/repayment-savings/`, GET/POST `/api/loans/`, POST `/api/loans/preview/`, GET `/api/loans/{loan_id}/rate-history/`, GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
 GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`, POST `/api/risks/simulate/`, GET `/api/payments/`, GET `/api/payments/{payment_id}/`, PATCH `/api/payments/schedule/{due_item_id}/confirmation/`.
+Finance profile routes: GET/PUT `/api/budgets/profile/`.
+Monthly budget routes: GET/PUT `/api/budgets/{year_month}/`.
+Income entry route: POST `/api/income-entries/`.
+Allocation route: PUT `/api/budgets/{year_month}/allocation/`.
 Further domain endpoints are tracked locally as pending until implemented and tested.
 
 Export accepts `format=csv` and optional `start_month`/`end_month` in `YYYY-MM` form.
@@ -108,6 +112,43 @@ income -5%, or a one-time current-month expense of 500,000 won. Direct slider va
 validate an owner-scoped filter; household calculations still include every active loan. The read-only request
 does not advance revision. Missing required query/engine implementations return 503; no runtime fixtures exist.
 See [risk input and projection contracts](docs/RISK_INPUTS.md) for cash, target and uncertainty handling.
+
+Finance profile GET returns 404 before the first save. PUT validates whole-won amounts, the income type and payday,
+and synchronizes the anonymous user's income type. Zero and unknown emergency funds remain distinct.
+Profile changes update only current/future unconfirmed DEFAULT months, preserving past/INPUT/confirmed months
+and each month's original discretionary limit. These two APIs work without Team 1 loan/engine implementations.
+
+Monthly budget GET requires `YYYY-MM` and uses only the session owner's data. It combines saved monthly inputs
+with Team 1's due/payment/saving and plan projections. Missing implementations return `503 SERVICE_UNAVAILABLE`.
+Future months are forecasts without persisted future rows; unknown actuals remain null, including unobserved
+payments/savings. Confirmed zero income or spending remains zero. Irregular planning uses three completed
+observed months, including confirmed zero months, or the profile estimate when there is insufficient history.
+The request may materialize elapsed DEFAULT snapshots and refresh derived settlements under the user lock;
+it does not alter original inputs, long-term plans or revision. Internal budget queries do not write.
+Past corrections recalculate settlements and carry only to the immediately following month.
+Income recording is a separate feature change.
+
+Monthly budget PUT accepts only the current KST month and requires all four expense amounts. Income entries
+are preserved when omitted, replaced as a whole when supplied, and deleted with `[]`; explicit null is invalid.
+Existing entry IDs must belong to this user and month. Entry types follow the monthly income type, dates must
+be in the current month and no later than today, and amounts must be positive whole won. Saving confirms the
+expenses while preserving the original discretionary limit, then recalculates settlements and advances revision
+once. Failure in validation or dependent projections rolls back the entire change, including income replacement.
+
+Income POST records one current-month entry with a required `Idempotency-Key` (1–128 characters).
+An identical retry returns the original 201 response and ID without another revision; a different body with
+the same key returns `409 INCOME_ENTRY_CONFLICT`. Keys are scoped to the session owner and route. Concurrent
+retries serialize under the user lock. Income, confirmation, settlement, revision and the saved response commit
+together, so failed requests can safely retry the same key. Entry types/dates/amounts follow the monthly PUT rules.
+
+Allocation PUT saves a current-month override with a required `Idempotency-Key`. The server validates owned
+active loans, repayment/saving types, grace periods, actual spending floors and the latest allocation capacity
+under the user lock. Already-used money remains counted even if its loan is omitted. Unallocated cash is allowed
+and is not automatically added to reserve. Original principal, long-term plan versions and strategy are unchanged.
+Updated plan views come from Team 1's `PlanPresentationPort`; a missing implementation returns 503. Saving,
+settlement, revision and the stored retry response commit together. FREE responses hide strategy and priority,
+including replay of a response originally saved under PRO. Schema and shared-port prerequisites must be integrated
+before opening this feature's central PR.
 
 ## Shared development
 
