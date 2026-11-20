@@ -36,7 +36,7 @@ class LoanRegistrationIntegrationTest {
         @Bean @Primary Clock fixed(){return Clock.fixed(Instant.parse("2025-12-31T15:00:00Z"),ZoneId.of("Asia/Seoul"));}
     }
     @MockitoBean BudgetRecalculationPort budget;
-    @MockitoBean ProductQueryPort products;
+    @MockitoBean com.loanrun.loanproduct.service.LoanProductService products;
     @Autowired ObjectMapper mapper;
     @Autowired JdbcTemplate jdbc;
     @Autowired LoanRegistrationService registration;
