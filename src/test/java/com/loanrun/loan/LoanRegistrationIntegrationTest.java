@@ -170,7 +170,7 @@ class LoanRegistrationIntegrationTest {
         var flyway=org.flywaydb.core.Flyway.configure().dataSource(jdbc.getDataSource()).schemas("registration_upgrade").defaultSchema("registration_upgrade").target("1").load();
         flyway.migrate();
         jdbc.update("INSERT INTO registration_upgrade.demo_users(session_digest,name,created_at,updated_at) VALUES ('upgrade-user','보존사용자',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
-        var upgrade=org.flywaydb.core.Flyway.configure().dataSource(jdbc.getDataSource()).schemas("registration_upgrade").defaultSchema("registration_upgrade").load();
+        var upgrade=org.flywaydb.core.Flyway.configure().dataSource(jdbc.getDataSource()).schemas("registration_upgrade").defaultSchema("registration_upgrade").target("2").load();
         assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(1);upgrade.validate();
         assertThat(jdbc.queryForObject("SELECT name FROM registration_upgrade.demo_users WHERE session_digest='upgrade-user'",String.class)).isEqualTo("보존사용자");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM registration_upgrade.loans",Long.class)).isZero();

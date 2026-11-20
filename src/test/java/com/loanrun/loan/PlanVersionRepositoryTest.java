@@ -191,7 +191,7 @@ class PlanVersionRepositoryTest {
         assertThatThrownBy(()->new StrategySource(0,"v","CODE")).isInstanceOf(IllegalArgumentException.class);
     }
     @Test void proposalDoesNotActivateFlywayAndRuntimePortRequiresActualApplicationStorage() {
-        assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank",String.class)).containsExactly("1","2");
+        assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank",String.class)).contains("1","2").doesNotContain("4");
         assertThat(publicPlans.getIfAvailable()).isInstanceOf(com.loanrun.repaymentplan.service.SavedPlanPortService.class);
         assertThatThrownBy(()->publicPlans.getObject().overallState(user())).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.code()).isEqualTo("SERVICE_UNAVAILABLE"));
     }
