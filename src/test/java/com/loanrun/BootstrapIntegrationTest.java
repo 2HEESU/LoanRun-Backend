@@ -178,7 +178,7 @@ class BootstrapIntegrationTest {
         }
         assertThat(json(request(client, "POST", "/api/users/me/", "{}", "http://localhost:5173")).path("code").asText()).isEqualTo("METHOD_NOT_ALLOWED");
         assertThat(request(client, "POST", "/api/auth/login/", "{}", "http://localhost:5173").statusCode()).isEqualTo(404);
-        assertThat(request(client, "DELETE", "/api/users/me/", null, "http://localhost:5173").statusCode()).isEqualTo(405);
+        assertThat(request(client, "DELETE", "/api/users/me/", null, "http://localhost:5173").statusCode()).isEqualTo(400);
         assertThat(json(request(client, "GET", "/actuator/health", null, null)).path("status").asText()).isEqualTo("UP");
         assertThat(clock.getZone()).isEqualTo(ZoneId.of("Asia/Seoul"));
     }

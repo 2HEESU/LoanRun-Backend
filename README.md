@@ -91,7 +91,7 @@ revision and replay response commit together for an actual flag change. Without 
 provider a changed request returns 503 and saves nothing. An unchanged request skips recalculation/revision
 and returns `report_stale: false` (no additional invalidation). See [confirmation states, locking and integration limits](docs/DUE_CONFIRMATION.md).
 
-Current routes: DELETE `/api/loans/{loan_id}/`, PATCH/DELETE `/api/repayment-savings/{saving_id}/`, GET/POST `/api/repayment-savings/`, GET/POST `/api/loans/`, POST `/api/loans/preview/`, GET `/api/loans/{loan_id}/rate-history/`, GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
+Current routes: DELETE `/api/loans/{loan_id}/`, PATCH/DELETE `/api/repayment-savings/{saving_id}/`, GET/POST `/api/repayment-savings/`, GET/POST `/api/loans/`, POST `/api/loans/preview/`, GET/PATCH/DELETE `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
 GET/PATCH `/api/settings/notifications/`, GET/api/settings/export/`, GET `/api/risks/`, POST `/api/risks/simulate/`, GET `/api/payments/`, GET `/api/payments/{payment_id}/`, PATCH `/api/payments/schedule/{due_item_id}/confirmation/`.
 Finance profile routes: GET/PUT `/api/budgets/profile/`.
 Monthly budget routes: GET/PUT `/api/budgets/{year_month}/`.
