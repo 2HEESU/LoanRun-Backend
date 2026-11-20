@@ -25,10 +25,11 @@ public class ExplanationClient {
         try{
             Map<String,Object> schema=Map.of("type","object","properties",Map.of("summary",Map.of("type","string"),"action_note",Map.of("type","string")),
                 "required",List.of("summary","action_note"),"additionalProperties",false);
-            Map<String,Object> request=Map.of("model",model,"store",false,"max_output_tokens",500,
+            Map<String,Object> request=new LinkedHashMap<>(Map.of("model",model,"store",false,"max_output_tokens",500,
                 "input",List.of(Map.of("role","system","content","서버가 확정한 집계 결과를 한국어로 짧게 설명합니다. 숫자·금액·날짜·비율·확률을 새로 쓰거나 계산하지 마세요. 추천 전략을 변경하지 마세요. 금융 수익이나 완납을 보장하지 마세요. 정보가 부족하면 확인을 안내하세요. summary와 action_note 문자열만 반환하세요."),
                     Map.of("role","user","content",mapper.writeValueAsString(facts))),
-                "text",Map.of("format",Map.of("type","json_schema","name","repayment_explanation","strict",true,"schema",schema)));
+                "text",Map.of("format",Map.of("type","json_schema","name","repayment_explanation","strict",true,"schema",schema))));
+            if("gpt-6-luna".equals(model))request.put("reasoning",Map.of("effort","none"));
             JsonNode response=client.post().uri("/responses").header("Authorization","Bearer "+key).body(request).retrieve().body(JsonNode.class);
             if(response==null||!"completed".equals(response.path("status").asText()))return fallback();
             String text=null;

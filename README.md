@@ -58,8 +58,41 @@ CI executes the same build without production secrets.
 - `PATCH /api/settings/subscription/` accepts `{"plan_type":"PRO"}` or `FREE` only when `DEMO_MODE=true`.
   Repeated identical transitions do not advance revision. Billing is always disabled.
 
-Current routes: GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
-GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`.
+Loan preview: `POST /api/loans/preview/` validates the shared registration input and returns the next basic
+payment, principal, interest and required BULLET saving using the real engine. It does not save a loan or
+advance financial revision. Manual product names work independently; selecting a product requires the
+Team 2 catalog port (503 until connected, missing product 404). Numeric strings and unknown fields are rejected.
+
+Loan registration: `POST /api/loans/` uses the same validation and returns 201 when its required budget
+recalculation provider is integrated. It atomically stores V2 loan sources, the default MATURITY snapshot and
+first due, enforcing seven active loans under the existing user lock. Optional `Idempotency-Key` replays the
+original response. Without the real recalculation provider it returns 503 and saves nothing. See
+[registration transaction and migration notes](docs/LOAN_REGISTRATION.md) before applying V2.
+
+Loan rate history: `GET /api/loans/{loan_id}/rate-history/` returns stored manual rates in application-date/ID
+order, including the registration rate with an unknown (null) previous rate. Foreign, missing and deleted
+loans return the same 404; paid-loan history remains visible. No financial sources are changed. See
+[rate history behavior and tests](docs/LOAN_RATE_HISTORY.md). Rate change registration is still pending.
+
+Payment detail: `GET /api/payments/{payment_id}/` returns the session owner's preserved actual payment,
+including fee/savings-use components, every saved due allocation and snapshot-based editability.
+History remains readable for PAID/DELETED loans. Missing/foreign records return the same 404; no actuals
+are rewritten or inferred. See [payment detail semantics](docs/PAYMENT_DETAIL.md). Payment writes remain pending.
+
+Payment list: `GET /api/payments/` accepts optional `loan_id`, `from`, `to`, `type`, `page`, `page_size`.
+It uses inclusive actual-date filters, stable newest-first pages (default 1/20, maximum size 100), and
+full-filter count/totals independent of the page. Items reuse payment detail, including all due allocations.
+See [pagination, ownership and aggregate semantics](docs/PAYMENT_LIST.md).
+
+Due confirmation: `PATCH /api/payments/schedule/{due_item_id}/confirmation/` accepts
+`{"unpaid_confirmed":true}` or false with required `Idempotency-Key`. Only past unrecorded regular dues
+can be confirmed/cancelled; actual payments and assets remain unchanged. The flag, budget recalculation,
+revision and replay response commit together for an actual flag change. Without the real recalculation
+provider a changed request returns 503 and saves nothing. An unchanged request skips recalculation/revision
+and returns `report_stale: false` (no additional invalidation). See [confirmation states, locking and integration limits](docs/DUE_CONFIRMATION.md).
+
+Current routes: DELETE `/api/loans/{loan_id}/`, PATCH/DELETE `/api/repayment-savings/{saving_id}/`, GET/POST `/api/repayment-savings/`, GET/POST `/api/loans/`, POST `/api/loans/preview/`, GET `/api/loans/{loan_id}/rate-history/`, GET/PATCH `/api/users/me/`, GET/PATCH `/api/settings/subscription/`,
+GET/PATCH `/api/settings/notifications/`, GET `/api/settings/export/`, POST `/api/risks/simulate/`, GET `/api/payments/`, GET `/api/payments/{payment_id}/`, PATCH `/api/payments/schedule/{due_item_id}/confirmation/`.
 Further domain endpoints are tracked locally as pending until implemented and tested.
 
 Export accepts `format=csv` and optional `start_month`/`end_month` in `YYYY-MM` form.
@@ -69,11 +102,42 @@ The original nine columns are followed by `fee_amount,savings_used_amount`, as r
 Success is a CSV attachment; errors use the JSON envelope. Team 1 supplies the owner-scoped `LoanQueryPort` projections;
 until those implementations are integrated, export returns `503 SERVICE_UNAVAILABLE` without runtime placeholder data.
 
+Risk simulation is PRO-only and accepts `scenario_type` (`CURRENT`, `RATE_UP`, `INCOME_DOWN`, `EXPENSE_UP`)
+and optional positive `loan_ids`. These scenarios independently apply variable-rate +1 percentage point,
+income -5%, or a one-time current-month expense of 500,000 won. Direct slider values are rejected. Loan IDs
+validate an owner-scoped filter; household calculations still include every active loan. The read-only request
+does not advance revision. Missing required query/engine implementations return 503; no runtime fixtures exist.
+See [risk input and projection contracts](docs/RISK_INPUTS.md) for cash, target and uncertainty handling.
+
 ## Shared development
 
 [Technical contracts](docs/CONTRACT.md) define domain ownership, ports and migration reservations.
 Team 1 implements the repayment engine and loans/payments/savings/plans. Team 2 owns common infrastructure
 and user/budget/catalog/dashboard/risk/report/settings. Runtime mock implementations are prohibited.
+
+Monthly payment observation requires explicit recording-complete or actual-zero evidence. Missing
+records/evidence yield `observed=false` and confirmed `actuals=null`, with raw sums kept separately.
+The internal reader checks scope and current ledger contents; no completion store/input workflow is
+connected yet. See [observation evidence and null/zero behavior](docs/PAYMENT_OBSERVATION.md).
+
+Actual-payment queries in `payment` group stored paid_at months/loans and separate original payment
+components, savings use and cash outflow (`amount - savings_used_amount`). API #24 reuses their totals.
+See [actual aggregate scope and supported funding combinations](docs/PAYMENT_ACTUALS.md). No observed-month
+or savings-funding priority is inferred from missing records.
+
+Stored-due queries in `payment` aggregate actual regular allocation components and evaluate the five
+regular-due states using the KST business date. They also drive confirmation eligibility. See
+[stored due state boundaries and coverage](docs/STORED_DUE_STATES.md). They do not generate schedules,
+install LoanQueryPort or assert that missing due rows mean zero debt.
+
+The owner-scoped V2 source read repository in `loan/read` preserves original loan/history/ledger facts.
+See [source query semantics and projection limits](docs/LOAN_SOURCE_QUERIES.md). It does not yet implement
+LoanQueryPort or enable real budget/CSV/risk integration.
+
+The real, pure `RepaymentEngine` implementation lives in `finance/engine`; Spring wiring is in `finance/config`.
+See [calculation behavior and limits](docs/REPAYMENT_ENGINE.md) and the
+[implementation audit](docs/IMPLEMENTATION_STATUS.md). The engine adds no HTTP routes or migrations.
+Loan/ledger/plan query implementations are still required before the CSV and risk APIs can use actual domain data.
 
 Production must set `SPRING_PROFILES_ACTIVE=prod`, database credentials and exact `ALLOWED_ORIGINS`.
 Use an HTTPS reverse proxy and a private DB network; this local Compose file is not a production deployment.
@@ -82,3 +146,87 @@ No cloud resources or automatic deployment have been created by this bootstrap.
 Version references: [Spring Boot requirements](https://docs.spring.io/spring-boot/3.5/system-requirements.html),
 [Gradle 8.14.7](https://docs.gradle.org/8.14.7/release-notes.html),
 [PostgreSQL releases](https://www.postgresql.org/docs/release/).
+
+Loan list: `GET /api/loans/` supports ACTIVE (default), PAID and ALL, with owner-scoped current balances,
+frozen regular dues and actual savings. Unknown plan-based payoff dates remain null. See
+[loan list semantics](docs/LOAN_LIST.md) and [current progress and remaining work](docs/PROGRESS_2026_11_19.md).
+
+Repayment savings: `GET /api/repayment-savings/?loan_id=...` reads the owner's BULLET savings ledger.
+Optional `from`/`to` filter records only; current assets and recorded current-month additions use their own scopes.
+See [savings list, goal sources and limits](docs/SAVING_LIST.md).
+
+Repayment saving creation: `POST /api/repayment-savings/` requires `Idempotency-Key` and atomically
+saves the owner's active BULLET addition, recalculation and revision. Without the real budget recalculation
+provider it returns 503 and stores nothing. See [saving creation and integration status](docs/SAVING_CREATE.md).
+
+Saving updates: `PATCH /api/repayment-savings/{saving_id}/` preserves omitted fields and rejects nulls,
+locked history and unsafe use-funded changes. Actual changes require budget recalculation; unchanged
+requests skip it and do not bump revision. See [saving update safety and integration](docs/SAVING_UPDATE.md).
+
+Saving deletion: `DELETE /api/repayment-savings/{saving_id}/` requires `Idempotency-Key` and no body.
+It reuses the asset safety policy and atomically removes one record, recalculates and bumps revision.
+Without the real budget provider it returns 503 and retains the original. See [saving deletion](docs/SAVING_DELETE.md).
+
+Loan deletion: `DELETE /api/loans/{loan_id}/` archives the owner's loan as DELETED and preserves sources.
+Any actual payment blocks deletion with 409 LOAN_HAS_PAYMENTS. The key is optional; actual budget
+recalculation is required. See [loan deletion, preserved history and integration](docs/LOAN_DELETE.md).
+
+Individual plan version storage is prepared as an unnumbered SQL proposal and isolated repository tests.
+It preserves V2 registration version1 and appends later source versions; no runtime consumer or partial
+query port is installed. See [source version semantics and activation dependencies](docs/PLAN_VERSION_STORAGE.md).
+
+Internal plan source queries now combine V2 registration goals and version history by effective date
+and separate knowledge cutoff, preserving missing historical bases as null. No runtime API is rewired.
+See [plan source query boundaries](docs/PLAN_SOURCE_QUERY.md).
+
+Plan projection input selection distinguishes verified monthly principal/saving averages from saved cash goals.
+Unknown months remain unknown; runtime observation evidence is still pending.
+See [observation window, amount units and integration boundaries](docs/PLAN_PROJECTION_BASIS.md).
+
+Individual payoff projections now connect that selection to the existing engine, adding fees to observed
+extra principal while preserving fee-inclusive fallback cash and BULLET savings-shortfall behavior.
+See [payoff projection behavior and runtime integration limits](docs/PLAN_PAYOFF_PROJECTION.md).
+
+Plan performance calculations now separate the full monthly goal from arrived cumulative goals, compare exact
+principal/saving amounts, and preserve unknown observations and regular-unrecorded status.
+See [plan progress, track rules and required evidence](docs/PLAN_PERFORMANCE.md).
+
+Saved-version reference schedules now feed that performance calculator through the existing engine.
+Missing original terms and uncertain fee-adjusted principal remain unavailable.
+See [reference schedule generation and evidence limits](docs/PLAN_REFERENCE_SCHEDULE.md).
+
+Current plan observation queries now read real payment/saving months and validate independent completion evidence.
+With no real completion source installed, inputs remain unobserved/null and preserve the existing plan fallback.
+See [source fingerprints, captured time and runtime limits](docs/PLAN_OBSERVATION_QUERY.md).
+
+Current individual payoff queries now compose actual loan terms, saved goals and verified observations with
+the existing engine. Unsupported frozen obligations stay unknown; a missing version table remains 503.
+See [current-source projection and remaining API/DB integration](docs/CURRENT_PLAN_PROJECTION.md).
+
+Current plan performance queries now combine recorded version-period totals with independent monthly evidence
+and original schedules. Unconfirmed cumulative periods and unproved start-balance reductions remain unknown.
+See [performance query periods, proof requirements and runtime limits](docs/PLAN_PERFORMANCE_QUERY.md).
+
+Current plan views: `GET /api/repayment-plans/` requires real version/budget sources for nonempty data. See [plan read behavior and limits](docs/PLAN_READ_API.md).
+
+`GET /api/loans/{loan_id}/` combines the public loan view, current plan and actual next stored due. See [detail read behavior](docs/LOAN_DETAIL_API.md).
+
+- API #19 금리 변경 등록: [동작 및 충돌/통합 조건](docs/LOAN_RATE_UPDATE_API.md). 과거 원본 보존, 미래 미확정 회차/현재 계획 재계산, 실패 전체 롤백.
+
+- API #16 대출 정보 수정: [수정/보정 및 보존·충돌 조건](docs/LOAN_UPDATE_API.md). 금리는 별도 이력 API 사용, 동일 값 무변경, 실제 보정 새 스냅샷/원자적 재계산.
+
+- API #27 월별 상환 통계: [관측·현금/적립·과거 목표/잔액 조건](docs/PAYMENT_MONTHLY_SUMMARY_API.md). 미기록 월은 실제 0원으로 처리하지 않음.
+
+- API #22 상환 계획 미리보기: [직접/성향/역산·PRO 전략·비교/보존 조건](docs/PLAN_PREVIEW_API.md). 현재·제안 동일 원천 비교, 저장 없음, 제안 장기 목표와 당월 override 구분.
+
+- API #21 계획 저장: [미리보기 재검증·불변 저장·멱등/롤백 및 DB 적용 조건](docs/PLAN_SAVE_API.md).
+
+- API #23 PRO 전체 계획: [실제 저장 상태·가계 집계·재검토 조건](docs/OVERALL_PLAN_API.md).
+
+- API #26 납부 일정: [저장 회차·실적 귀속·목표 원천 및 미생성 미래 회차](docs/PAYMENT_SCHEDULE_API.md).
+
+- API #25 납부 등록: [실제 구성·회차 충당·원장 재처리·적립 사용·원자적 재정산](docs/PAYMENT_CREATE_API.md).
+
+- API #29 납부 수정: [자동 재분리·스냅샷 잠금·원장 재처리·완납 취소/원약정 복원](docs/PAYMENT_UPDATE_API.md).
+
+- API #30 납부 삭제: [원장 재처리·적립 반환·원약정 복원·멱등/충돌/롤백](docs/PAYMENT_DELETE_API.md).
