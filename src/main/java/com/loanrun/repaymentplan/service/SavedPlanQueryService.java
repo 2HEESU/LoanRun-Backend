@@ -10,7 +10,7 @@ import java.util.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.*;
 
-/** Internal saved goals only; runtime common adapter awaits the coordinated DB baseline. */
+/** Internal API goal helper; the shared runtime contract is supplied by SavedPlanPortService. */
 @Service
 @Transactional(readOnly=true,isolation=Isolation.REPEATABLE_READ)
 public class SavedPlanQueryService {
